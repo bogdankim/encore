@@ -185,6 +185,7 @@ func run(demo bool) error {
 		ArtFetch:       artFetch,
 		ArtCacheDir:    artDir,
 		HomePage:       homePage(),
+		Start:          cfg.Start,
 	})
 	prog := tea.NewProgram(app, tea.WithOutput(out))
 	ref.send = prog.Send

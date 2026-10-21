@@ -521,8 +521,8 @@ override any token in config.
   13 to 19 cells wide (`layoutTiles`). A row scrolls by whole tiles; a
   faint `‹` at column 0 and `›` at the last column, level with the middle
   of the art, say there is more. Station tiles say "Station" under the
-  name, live stations "Live" and the show on air. The page opens on start
-  when it has shelves; without a cached page it says "Open Home in Music
+  name, live stations "Live" and the show on air. With `start = "home"`
+  encore opens on it when it has shelves; without a cached page it says "Open Home in Music
   once and it will show up here."
 - Recently Added: album grid (art tiles with title and artist under each).
 - Artists: two columns: artist list, and the selected artist's albums (grid) with

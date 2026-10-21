@@ -123,6 +123,7 @@ encore reads `~/.config/encore/config.toml` (or `$XDG_CONFIG_HOME/encore/config.
 theme = "encore"   # follows the terminal's light or dark background
 accent = "#FA586A"
 art = "auto"       # "iip", "kitty", "sixel", "blocks" or "off"
+start = "recent"   # the page encore opens on, e.g. "home" or "albums"
 
 [lyrics]
 lrclib = false     # Apple's lyrics and Music's own only

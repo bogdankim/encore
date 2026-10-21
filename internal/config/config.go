@@ -22,6 +22,7 @@ type Config struct {
 	Icons        string            `toml:"icons"`  // auto, nerd, unicode
 	Art          string            `toml:"art"`    // auto, iip, kitty, sixel, blocks, off
 	SidebarWidth int               `toml:"sidebar_width"`
+	Start        string            `toml:"start"` // the page encore opens on: home, recent, artists, albums, songs, favorites
 	Mouse        bool              `toml:"mouse"`
 	Lyrics       LyricsConfig      `toml:"lyrics"`
 	LastFM       LastFMConfig      `toml:"lastfm"`
@@ -61,6 +62,7 @@ const (
 var (
 	IconSets  = []string{"auto", "nerd", "unicode"}
 	ArtModes  = []string{"auto", "iip", "kitty", "sixel", "blocks", "off"}
+	Starts    = []string{"home", "recent", "artists", "albums", "songs", "favorites"}
 	hexColour = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
 )
 
@@ -71,6 +73,7 @@ func Default() Config {
 		Icons:        "auto",
 		Art:          "auto",
 		SidebarWidth: 22,
+		Start:        "recent",
 		Mouse:        true,
 		Lyrics:       LyricsConfig{Enabled: true, Apple: true, LRCLIB: true, LeadMS: 200, WordLeadMS: 100},
 		LastFM:       LastFMConfig{Enabled: true},
@@ -131,6 +134,10 @@ func (c *Config) validate() []string {
 	if !slices.Contains(ArtModes, c.Art) {
 		w = append(w, fmt.Sprintf("art %q must be one of %s; using %q", c.Art, strings.Join(ArtModes, ", "), d.Art))
 		c.Art = d.Art
+	}
+	if !slices.Contains(Starts, c.Start) {
+		w = append(w, fmt.Sprintf("start %q must be one of %s; using %q", c.Start, strings.Join(Starts, ", "), d.Start))
+		c.Start = d.Start
 	}
 	if c.SidebarWidth < MinSidebarWidth || c.SidebarWidth > MaxSidebarWidth {
 		w = append(w, fmt.Sprintf("sidebar_width %d is outside %d..%d; using %d", c.SidebarWidth, MinSidebarWidth, MaxSidebarWidth, d.SidebarWidth))
@@ -257,6 +264,7 @@ icons = "auto"
 art = "auto"
 
 sidebar_width = 22
+start = "recent"   # home, recent, artists, albums, songs, favorites
 mouse = true
 
 [lyrics]

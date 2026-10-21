@@ -220,7 +220,7 @@ handles it per tile).
 `HomeSource`: `*home.Reader` in real mode, a fixture built from the demo
 catalog in `--demo` (`cmd/encore/demohome.go`). `main` starts a `Load`
 before the bridge and waits up to 300 ms for it before `ui.New`;
-`Options.HomePage` with shelves makes Home the start view. `HomeView` keeps
+`Options.Start` (config `start`) picks the start view, Recently Added by default; Home needs `Options.HomePage` with shelves, else Recently Added. `HomeView` keeps
 each shelf's selected item and scroll (`homeShelf.cur`, `.off`) and the
 page's first block (`top`: a shelf or the "New" heading). j/k keep the
 column on screen, h/l at a row's end return false so focus moves on, as

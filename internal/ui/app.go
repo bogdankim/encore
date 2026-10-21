@@ -55,9 +55,11 @@ type Options struct {
 	// it in memory only.
 	ArtFetch    ArtFetch
 	ArtCacheDir string
-	// HomePage is Apple Music's Home page read before start, or nil. With
-	// shelves, encore opens on Home instead of Recently Added.
+	// HomePage is Apple Music's Home page read before start, or nil.
 	HomePage *home.Page
+	// Start is the section encore opens on (KeyRecent and the like); ""
+	// is Recently Added. Home without shelves falls back to Recently Added.
+	Start string
 }
 
 // LibraryMsg delivers a refreshed library; send it with Program.Send.
@@ -232,12 +234,15 @@ func New(o Options) *App {
 		a.keys = keymap.New()
 	}
 	a.sidebar = newSidebar(a.lib)
-	start := KeySongs
-	switch {
-	case o.HomePage != nil && len(o.HomePage.Shelves)+len(o.HomePage.New) > 0:
-		start = KeyHome
-	case viewCtors.RecentlyAdded != nil:
+	start := o.Start
+	if start == KeyHome && (o.HomePage == nil || len(o.HomePage.Shelves)+len(o.HomePage.New) == 0) {
+		start = ""
+	}
+	if start == "" {
 		start = KeyRecent
+	}
+	if a.section(start) == nil {
+		start = KeySongs
 	}
 	a.nav.open(a.section(start))
 	a.sidebar.syncTo(start)

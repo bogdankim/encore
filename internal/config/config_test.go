@@ -176,3 +176,14 @@ func TestWriteDefault(t *testing.T) {
 		t.Fatal("existing config was overwritten")
 	}
 }
+
+func TestParseStart(t *testing.T) {
+	c, warns, err := Parse(`start = "albums"`)
+	if err != nil || len(warns) != 0 || c.Start != "albums" {
+		t.Fatalf("start = albums: %q %v %v", c.Start, warns, err)
+	}
+	c, warns, err = Parse(`start = "queue"`)
+	if err != nil || len(warns) != 1 || c.Start != "recent" {
+		t.Fatalf("start = queue: %q %v %v", c.Start, warns, err)
+	}
+}

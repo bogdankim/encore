@@ -151,7 +151,7 @@ Home is Apple Music's Home page: Top Picks, Recently Played, Stations for You, t
 
 encore can't start Apple's playlists, the personal mixes included. Music only plays them from its own window. So `enter` on a mix or an editorial playlist opens it in Music.app, which comes to the front on that playlist, and the footer says "Opening in Music.app". Hovering such a tile says "Opens in Music.app". `M` opens any album, song or playlist tile in Music.app the same way, including the playlists encore can play. When Music's cache happens to hold a playlist's songs, encore plays them itself.
 
-encore doesn't talk to Apple Music's servers for this. It reads the Home page from Music's own cache (`~/Library/Caches/com.apple.Music`, read-only) and keeps a copy in `~/Library/Caches/encore/home/`, so Home is as fresh as the last time Music showed its Home page. The title line says how old it is ("updated 2 h ago"). If Music has never shown Home since its cache was cleared, the page asks you to open Home in Music once. While Home is on screen encore checks the cache every 10 seconds and reloads when it changed, keeping your place. When there is a page, encore starts on Home; otherwise on Recently Added.
+encore doesn't talk to Apple Music's servers for this. It reads the Home page from Music's own cache (`~/Library/Caches/com.apple.Music`, read-only) and keeps a copy in `~/Library/Caches/encore/home/`, so Home is as fresh as the last time Music showed its Home page. The title line says how old it is ("updated 2 h ago"). If Music has never shown Home since its cache was cleared, the page asks you to open Home in Music once. While Home is on screen encore checks the cache every 10 seconds and reloads when it changed, keeping your place. encore opens on Recently Added; set `start = "home"` in the [config](#configuration) to open on Home instead.
 
 While a station plays, the player bar shows the station's name where the album would be ("artist · Station Name"), and live radio shows "Live" instead of the elapsed time.
 
@@ -209,6 +209,7 @@ icons = "auto"
 art = "auto"
 
 sidebar_width = 22
+start = "recent"   # home, recent, artists, albums, songs, favorites
 mouse = true
 
 [lyrics]
@@ -241,6 +242,7 @@ Notes on the keys:
 - `icons = "auto"` uses Nerd Font symbols on WezTerm, which bundles them, and plain Unicode elsewhere. Set `nerd` if your font has them.
 - `art = "auto"` picks iTerm2 images on WezTerm and iTerm2, kitty graphics on kitty and Ghostty, and half blocks everywhere else. Inside tmux it asks tmux which terminal the session is attached to; see [tmux](#tmux). `iip`, `kitty`, `sixel` and `blocks` skip the detection.
 - `sidebar_width` is in columns, from 14 to 40. Outside that range encore warns and uses 22.
+- `start` is the page encore opens on: `home`, `recent` (Recently Added), `artists`, `albums`, `songs` or `favorites`. `home` falls back to Recently Added until Music has cached the Home page.
 - `mouse = false` turns mouse reporting off.
 - `lyrics.lead_ms` highlights each synced lyric line this many milliseconds before its timestamp, in the pane and in full-screen lyrics. The default is 200. It takes -5000 to 5000.
 - `lyrics.word_lead_ms` starts filling each word of word-timed lyrics (Apple's, and LRC with `<mm:ss.xx>` word tags) this many milliseconds before its timestamp, to make up for the time a frame takes to reach the screen. The default is 100. It takes -5000 to 5000.
