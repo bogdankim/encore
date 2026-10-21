@@ -49,7 +49,7 @@ Music.app still plays the audio, handles AirPlay and syncs your library. encore 
   </tr>
 </table>
 
-The screenshots use the built-in demo library (`encore --demo`), so the names, covers and lyrics are made up.
+The lyrics screenshot uses the built-in demo library (`encore --demo`), so its names, cover and lyrics are made up.
 
 ## Install
 
