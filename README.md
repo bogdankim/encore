@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/logo/encore-full-note-dark.svg">
-  <img src="docs/logo/encore-full-note-light.svg" alt="encore" width="560">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo/encore-dark.svg">
+  <img src="docs/logo/encore-light.svg" alt="encore" width="560">
 </picture>
 
 A fast terminal client for Apple Music on macOS.
@@ -189,3 +189,10 @@ node tools/snap/snap.mjs --cols 140 --rows 42 \
 [MIT](LICENSE) © 2026 Bogdan Kim
 
 encore is not affiliated with, endorsed by or sponsored by Apple. Apple Music, Music, AirPlay and macOS are trademarks of Apple Inc.
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo/encore-cut-dark.svg">
+  <img src="docs/logo/encore-cut-light.svg" alt="" width="100%">
+</picture>
