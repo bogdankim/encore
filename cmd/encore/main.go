@@ -84,6 +84,10 @@ func run(demo bool) error {
 		client, lib = fake, library.Build(snap)
 		svc.FakeLRC = fake.FakeLRC
 		dc := newDemoCatalog(lib, fake)
+		if snap, err = fake.Snapshot(ctx); err != nil { // now with catalog ids
+			return err
+		}
+		lib = library.Build(snap)
 		svc.Catalog = dc
 		svc.Home = newDemoHome(dc)
 		homePage = preloadHome(ctx, svc.Home)

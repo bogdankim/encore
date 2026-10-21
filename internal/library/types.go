@@ -32,6 +32,9 @@ type Track struct {
 	Available   bool // false for cloud items that are no longer available
 	Kind        string
 	HasArt      bool
+	// StoreID is the song's Apple Music catalog id, 0 when Music has none
+	// (local files, uploads) or the snapshot didn't carry it.
+	StoreID int64
 
 	// Container is a playlist that holds this track when InLibrary is false.
 	Container string
@@ -88,6 +91,7 @@ type Playlist struct {
 	Name     string
 	Kind     string // user, smart, folder, subscription, genius
 	Special  string
+	GlobalID string   // cloud id ("pl.…") the Apple Music catalog knows it by, or ""
 	Tracks   []*Track // playlist order; empty for folders
 	Children []*Playlist
 	Duration time.Duration
@@ -111,6 +115,7 @@ type Library struct {
 	albumByKey map[string]*Album
 	artistByNm map[string]*Artist
 	plByPID    map[string]*Playlist
+	match      matchIndex
 }
 
 // Track returns the track with this pid, or nil.

@@ -90,6 +90,9 @@ func (t *TrackTable) rowString(tr *library.Track, idx, cursor, hover int, focuse
 	if c.IsFavorite(tr) {
 		st |= rowFav
 	}
+	if t.opts.LibMark && c.StandInInLibrary(tr) {
+		st |= rowLib
+	}
 	k := rowKey{tr, w, st}
 	s, ok := t.cache[k]
 	if !ok {
@@ -155,7 +158,7 @@ func (t *TrackTable) columns(w int) []colSpec {
 			if cw >= wideFrom {
 				cols = append(cols, t.opts.Wide...)
 			}
-			if !t.opts.NoHeart {
+			if !t.opts.NoHeart || t.opts.LibMark {
 				cols = append(cols, ColHeart)
 			}
 		}
@@ -323,6 +326,10 @@ func (t *TrackTable) row(tr *library.Track, st uint8, p *paints, g *theme.Glyphs
 		case ColTitle:
 			titleCell(l, tr, false, main, sub, g, cs.w)
 		case ColHeart:
+			if t.opts.LibMark {
+				libCell(l, g, st&rowLib != 0)
+				break
+			}
 			heartCell(l, g, st&rowFav != 0, playing, st&rowHover != 0 && !dead)
 		case ColArtist:
 			l.fit(sub, tr.Artist, cs.w)
@@ -377,6 +384,20 @@ func titleCell(l *line, tr *library.Track, fav bool, main, sub tone, g *theme.Gl
 	}
 	l.to(end)
 }
+
+// libCell fills the two-cell column that marks an Apple Music song the
+// library has: a dim check, else blank. It takes the favorite column's place
+// in catalog lists, so it lines up like the heart and costs the same width.
+func libCell(l *line, g *theme.Glyphs, in bool) {
+	if in {
+		l.add(toneDim, g.InLib+" ")
+		return
+	}
+	l.pad(heartW)
+}
+
+// inLibraryTip names the check on hover.
+const inLibraryTip = "In Your Library"
 
 // heartCell fills the two-cell favorite column: the heart in dim for a
 // favorite (accent on the playing row), a faint outline on the hovered row

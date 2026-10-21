@@ -38,6 +38,9 @@ type AlbumView struct {
 	// Set for an Apple Music album (CatalogAlbumView): no favorite
 	// column, and it plays as a catalog context.
 	noHeart bool
+	// libMark puts the check for songs the library has in the favorite
+	// column's place (see CatalogSongInLibrary).
+	libMark bool
 	kind    player.Kind
 }
 
@@ -333,6 +336,15 @@ func (v *AlbumView) onHeart(x int) bool {
 	return x >= hx && x < hx+heartW
 }
 
+// onMark reports whether local column x is on the library check.
+func (v *AlbumView) onMark(x int) bool {
+	if !v.libMark {
+		return false
+	}
+	hx := v.cols(v.listW()).heartX
+	return x >= hx && x < hx+heartW
+}
+
 // hint names what the pointer rests on: a header control, the favorite
 // toggle, or a track Music can't play.
 func (v *AlbumView) hint(x int, c *Ctx) {
@@ -343,7 +355,12 @@ func (v *AlbumView) hint(x int, c *Ctx) {
 	if v.hover < 0 {
 		return
 	}
-	if s := trackTip(v.album.Tracks[v.hover], v.onHeart(x), c); s != "" {
+	tr := v.album.Tracks[v.hover]
+	if tr.Available && v.onMark(x) && c.StandInInLibrary(tr) {
+		c.Hint(inLibraryTip)
+		return
+	}
+	if s := trackTip(tr, v.onHeart(x), c); s != "" {
 		c.Hint(s)
 	}
 }
@@ -418,7 +435,7 @@ func (v *AlbumView) header(w, h int, c *Ctx) []string {
 }
 
 // albumCols are the track list's column widths, and where the heart
-// column starts.
+// column starts (it holds the library check on an Apple Music album).
 type albumCols struct{ num, title, artist, time, heartX int }
 
 // cols lays the list out in w cells, ending at contentRight(w) like every
@@ -428,7 +445,7 @@ func (v *AlbumView) cols(w int) albumCols {
 	tm := v.timeW
 	right := contentRight(w)
 	cols := albumCols{num: num, time: tm, heartX: right - tm - 1 - heartW}
-	if v.noHeart {
+	if v.noHeart && !v.libMark {
 		cols.heartX = right - tm - 1
 	}
 	rest := cols.heartX - columnGap - (1 + num + columnGap)
@@ -482,7 +499,10 @@ func (v *AlbumView) trackLines(w int, c *Ctx) []string {
 			l.pad(columnGap).fit(sub, artist, cols.artist)
 		}
 		l.to(cols.heartX)
-		if !v.noHeart {
+		switch {
+		case v.libMark:
+			libCell(l, &t.G, c.StandInInLibrary(tr))
+		case !v.noHeart:
 			heartCell(l, &t.G, c.IsFavorite(tr), isPlaying, row.track == v.hover && !dead)
 		}
 		l.pad(1).right(sub, clock(tr.Duration), cols.time)

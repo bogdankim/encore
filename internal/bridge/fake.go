@@ -491,6 +491,17 @@ func (f *Fake) PlayTracks(ctx context.Context, pids []string, containers map[str
 	})
 }
 
+// SetStoreIDs gives the library's songs Apple Music catalog ids, as iTunesLibrary
+// does for songs from the catalog: id returns the id of a song, 0 for none.
+// Later snapshots carry them.
+func (f *Fake) SetStoreIDs(id func(SnapshotTrack) int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.lib.tracks {
+		f.lib.tracks[i].StoreID = id(f.lib.tracks[i])
+	}
+}
+
 // RegisterCatalog gives PlayStore names and durations for these store ids.
 func (f *Fake) RegisterCatalog(songs ...FakeCatalogSong) {
 	f.mu.Lock()

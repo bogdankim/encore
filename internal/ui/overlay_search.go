@@ -930,6 +930,8 @@ func (s *SearchOverlay) cells(c *Ctx, r searchRow, cols [3]int) string {
 		right = t.Dim.Render(clock(song.Duration))
 		if tr.PID == c.PlayingTrackPID() {
 			right = t.Accent.Render(t.G.Playing) + " " + right
+		} else if c.CatalogSongInLibrary(song.ID, song.Name, song.Artist) {
+			right = searchMark(t, right, cols[2])
 		}
 	case srCatAlbum:
 		a := s.catRes.Albums[r.i]
@@ -939,6 +941,9 @@ func (s *SearchOverlay) cells(c *Ctx, r searchRow, cols [3]int) string {
 		if y := strconv.Itoa(a.Year()); a.Year() > 0 && Width(secondary)+Width(sep+y) <= cols[1] {
 			secondary += t.Dim.Render(sep + y)
 		}
+		if c.CatalogAlbumInLibrary(a.Name, a.Artist) {
+			right = searchMark(t, "", cols[2])
+		}
 	case srCatArtist:
 		a := s.catRes.Artists[r.i]
 		hl := search.Highlight(s.catQuery, a.Name)
@@ -946,4 +951,16 @@ func (s *SearchOverlay) cells(c *Ctx, r searchRow, cols [3]int) string {
 		secondary = t.Dim.Render(a.Genre)
 	}
 	return Row(2, Cell{Text: primary, W: cols[0]}, Cell{Text: secondary, W: cols[1]}, Cell{Text: right, W: cols[2], Right: true})
+}
+
+// searchMark is the last column of an Apple Music row the library has: the
+// check at the column's left edge, in the same place on every row, and rest
+// (the time, already styled) right-aligned after it. A rest that leaves no
+// room for the check stays alone.
+func searchMark(t *theme.Theme, rest string, w int) string {
+	gap := w - 1 - Width(rest)
+	if gap < 1 {
+		return rest
+	}
+	return t.Dim.Render(t.G.InLib) + strings.Repeat(" ", gap) + rest
 }

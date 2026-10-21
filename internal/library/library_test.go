@@ -401,6 +401,8 @@ func TestBuildLarge(t *testing.T) {
 func TestCacheRoundTrip(t *testing.T) {
 	s := libtest.Snapshot(3000)
 	s.Playlists[0].Items = append(s.Playlists[0].Items, "DEADBEEFDEADBEEF") // not a known track
+	s.Tracks[7].StoreID, s.Tracks[8].StoreID = 1440942209, 7
+	s.Playlists[1].GlobalID = "pl.bed492442a53481f98e98c6c4da9e01d"
 	path := filepath.Join(t.TempDir(), "sub", "library.cache")
 	if err := SaveCache(path, s); err != nil {
 		t.Fatal(err)
@@ -415,7 +417,7 @@ func TestCacheRoundTrip(t *testing.T) {
 	for i := range s.Playlists {
 		a, b := s.Playlists[i], got.Playlists[i]
 		if a.PID != b.PID || a.ParentPID != b.ParentPID || a.Name != b.Name || a.Kind != b.Kind ||
-			a.Special != b.Special || !slices.Equal(a.Items, b.Items) {
+			a.Special != b.Special || a.GlobalID != b.GlobalID || !slices.Equal(a.Items, b.Items) {
 			t.Fatalf("playlist %d differs", i)
 		}
 	}

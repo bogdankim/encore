@@ -632,6 +632,20 @@ func (lib *fakeLibrary) buildPlaylists(g *gen, outside []string) {
 	for _, u := range users {
 		add(u.name, u.kind, "", "", u.items)
 	}
+
+	// Apple Music playlists the demo library follows: their cloud ids are
+	// those of the demo Home page's playlists (cmd/encore/demohome.go), so
+	// Home marks them as in the library.
+	for _, f := range []struct {
+		name, global string
+		genres       []string
+	}{
+		{"Indie Rising", "pl.demo-indie-rising", []string{"Indie Pop", "Alternative"}},
+		{"Chill Vibes", "pl.demo-chill-vibes", []string{"Ambient", "Folk", "Jazz"}},
+	} {
+		add(f.name, "subscription", "", "", sample(filter(genres(f.genres...)), 24))
+		lib.playlists[len(lib.playlists)-1].GlobalID = f.global
+	}
 }
 
 // pickStart chooses the album the player starts on: the most recently added

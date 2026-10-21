@@ -17,6 +17,7 @@ type Glyphs struct {
 	Marker   string // focus marker at the left edge of the selected row
 	Explicit string // explicit tag (one cell; leave a space after it)
 	Blocked  string // leads an unavailable track's title
+	InLib    string // marks an Apple Music item the library already has (one cell)
 	Dot      string // separator
 	Ellipsis string
 
@@ -37,7 +38,7 @@ var Unicode = Glyphs{
 	AirPlay: "◎", Lyrics: "❞", Queue: "≡",
 	Search: "⌕",
 
-	Playing: "▶", Marker: "▎", Explicit: "E", Blocked: "⊘", Dot: "·", Ellipsis: "…",
+	Playing: "▶", Marker: "▎", Explicit: "E", Blocked: "⊘", InLib: "✓", Dot: "·", Ellipsis: "…",
 	BarFill: "━", BarHead: "╸", BarRest: "─",
 	Levels: []string{"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"},
 	RuleH:  "─", RuleV: "│",

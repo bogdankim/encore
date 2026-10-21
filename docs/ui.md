@@ -32,6 +32,7 @@ ui/
   views_*.go     Home, Songs, Favorites, Albums, Artists, Recently Added, Album, Playlist, Artist
   lyrics.go      lyrics pane and full-screen lyrics
   queue.go       Up Next pane
+  inlibrary.go   the check for Apple Music items the library has: memoized lookups on Ctx
   overlay_*.go   search, palette, help, context menu, AirPlay picker, last.fm setup, which-key
 ```
 
@@ -159,6 +160,25 @@ only after `catalogQuiet` (300 ms). Album grids treat keys `catalog:<id>`
 scope debounces 350 ms, cancels the request in flight when the text changes,
 and never queries from the All scope.
 
+Items the library already has (`inlibrary.go`, rules in
+`library/match.go`; `docs/design.md`, "Apple Music items in the library"):
+`Ctx.CatalogSongInLibrary`, `CatalogAlbumInLibrary`, `CatalogPlaylistInLibrary`
+and the wrappers `StandInInLibrary` (a stand-in track; a library track is never
+marked), `CatalogAlbumTileInLibrary` (a `catalog:<id>` album) and
+`HomeItemInLibrary` (Home album, song and playlist; stations and artists
+never). Rows draw every frame, so the answers are memoized per `*library.Library`
+in `marks` (UI goroutine only; a new library resets it). The glyph is
+`Glyphs.InLib`, drawn in dim, in these places: `TableOptions.LibMark` (the
+artist page's top songs) and `AlbumView.libMark` (`CatalogAlbumView`) use the
+favorite column's slot, `libCell` (those tables have no heart column), with
+`rowLib` in the row cache key; `tileTitle` and `titleMark` put it in the last
+cell of an album tile's title (grid, and the title column in list mode) and
+of a Home tile's, taking two cells from the title and nothing under 8 cells
+of room; `searchMark` puts it at the left edge of the Apple Music search
+row's time column, and a playing row shows `▶` instead. Hovering the check
+of a song says "In Your Library". None of this changes what enter, the menus
+or the buttons do.
+
 Open in (`openin.go`): `space o a l` / `space o a r` (album / artist in
 Apple Music) and `space o l l` / `space o l r` (in the library) act on the
 focused selection (`subjecter`, else `Selected`); `space o a` and
@@ -213,6 +233,10 @@ sets `shown`; a poll tick that finds it unset stops, and `Init` (on
 `Open` and history) starts it again. Each tick calls `Changed` and `Load`
 off the UI goroutine, and loads anyway every sixth tick so live shows stay
 current. A reload keeps the selection and `top` by shelf id and item id.
+
+A tile's title line carries the check when the library has the item
+(`HomeItemInLibrary`); a Home playlist is in the library when a library
+playlist has its `pl.…` id as `GlobalID`.
 
 Activation (`homeActivate`): a station plays through `homeHost.PlayStation`
 (the app's `PlayStation`, `player.PlayStation`), a song plays with its

@@ -21,9 +21,12 @@ import (
 // strings. Playlist items are stored as track indexes where possible. Decoding
 // copies the file into one string and slices every field out of it, so a load
 // costs a handful of allocations per track instead of one per field.
+//
+// Version 2 adds a track's store id and a playlist's global id. Version 1
+// files still load, without them, until the next snapshot replaces the cache.
 const (
 	cacheMagic   = "ENCORELB"
-	cacheVersion = 1
+	cacheVersion = 2
 )
 
 // ErrCacheVersion means the cache was written by a different format version.
@@ -54,7 +57,7 @@ func SaveCache(path string, s *bridge.Snapshot) (err error) {
 		return err
 	}
 	crc := crc32.NewIEEE()
-	e := encoder{w: io.MultiWriter(w, crc)}
+	e := encoder{w: io.MultiWriter(w, crc), ver: cacheVersion}
 	e.snapshot(s)
 	if e.err != nil {
 		return e.err
@@ -85,14 +88,15 @@ func LoadCache(path string) (*bridge.Snapshot, error) {
 	if len(data) < 16 || string(data[:8]) != cacheMagic {
 		return nil, errors.New("library cache: not a cache file")
 	}
-	if v := binary.LittleEndian.Uint32(data[8:12]); v != cacheVersion {
-		return nil, fmt.Errorf("%w %d", ErrCacheVersion, v)
+	ver := binary.LittleEndian.Uint32(data[8:12])
+	if ver < 1 || ver > cacheVersion {
+		return nil, fmt.Errorf("%w %d", ErrCacheVersion, ver)
 	}
 	payload := data[12 : len(data)-4]
 	if crc32.ChecksumIEEE(payload) != binary.LittleEndian.Uint32(data[len(data)-4:]) {
 		return nil, errors.New("library cache: checksum mismatch")
 	}
-	d := decoder{s: string(payload)}
+	d := decoder{s: string(payload), ver: ver}
 	s := d.snapshot()
 	if d.err != nil {
 		return nil, d.err
@@ -112,6 +116,7 @@ const (
 
 type encoder struct {
 	w   io.Writer
+	ver uint32 // the format to write; tests write version 1
 	buf []byte
 	err error
 }
@@ -175,6 +180,9 @@ func (e *encoder) snapshot(s *bridge.Snapshot) {
 			}
 		}
 		e.uint(flags)
+		if e.ver >= 2 {
+			e.uint(uint64(max(t.StoreID, 0)))
+		}
 		if len(e.buf) > 1<<15 {
 			e.flush()
 		}
@@ -187,6 +195,9 @@ func (e *encoder) snapshot(s *bridge.Snapshot) {
 		e.str(p.Name)
 		e.str(p.Kind)
 		e.str(p.Special)
+		if e.ver >= 2 {
+			e.str(p.GlobalID)
+		}
 		e.uint(uint64(len(p.Items)))
 		// Items are track index + 1, or 0 followed by the pid for an item
 		// that is not among the tracks.
@@ -209,6 +220,7 @@ var errCorrupt = errors.New("library cache: corrupt payload")
 
 type decoder struct {
 	s   string
+	ver uint32
 	off int
 	err error
 }
@@ -301,6 +313,9 @@ func (d *decoder) snapshot() *bridge.Snapshot {
 		t.InLibrary = flags&flagInLibrary != 0
 		t.Available = flags&flagAvailable != 0
 		t.Art = flags&flagArt != 0
+		if d.ver >= 2 {
+			t.StoreID = int64(d.uint())
+		}
 		if d.err != nil {
 			return nil
 		}
@@ -313,6 +328,9 @@ func (d *decoder) snapshot() *bridge.Snapshot {
 		p.Name = d.str()
 		p.Kind = d.str()
 		p.Special = d.str()
+		if d.ver >= 2 {
+			p.GlobalID = d.str()
+		}
 		p.Items = make([]string, d.count(1))
 		for j := range p.Items {
 			k := d.uint()

@@ -51,6 +51,10 @@ type TableOptions struct {
 	// NoHeart hides the favorite column, for lists where every row would
 	// show one (Favorites).
 	NoHeart bool
+	// LibMark puts the check for Apple Music songs the library has in the
+	// favorite column's place (see CatalogSongInLibrary), for tables of
+	// catalog stand-ins. It implies NoHeart.
+	LibMark bool
 	// Empty is the sentence shown when there are no tracks.
 	Empty string
 }
@@ -107,6 +111,7 @@ const (
 	rowHover
 	rowPlaying
 	rowFav
+	rowLib // an Apple Music song the library has (TableOptions.LibMark)
 )
 
 const (
@@ -530,6 +535,9 @@ func (t *TrackTable) columnAt(x int) int {
 
 // heartAt reports whether x is in the favorite column.
 func (t *TrackTable) heartAt(x int) bool {
+	if t.opts.LibMark {
+		return false // that column holds the library check, not a toggle
+	}
 	for _, cs := range t.cols {
 		if cs.c == ColHeart {
 			return x >= cs.x && x < cs.x+cs.w
@@ -548,7 +556,21 @@ func (t *TrackTable) HoverTip(x int, c *Ctx) string {
 	if t.hover < 0 || t.hover >= len(t.rows) {
 		return ""
 	}
-	return trackTip(t.rows[t.hover], t.heartAt(x), c)
+	tr := t.rows[t.hover]
+	if t.opts.LibMark && tr.Available && t.markAt(x) && c.StandInInLibrary(tr) {
+		return inLibraryTip
+	}
+	return trackTip(tr, t.heartAt(x), c)
+}
+
+// markAt reports whether x is in the library check's column.
+func (t *TrackTable) markAt(x int) bool {
+	for _, cs := range t.cols {
+		if cs.c == ColHeart {
+			return x >= cs.x && x < cs.x+cs.w
+		}
+	}
+	return false
 }
 
 // trackTip is the hint for a track row: "Not available" when Music can't

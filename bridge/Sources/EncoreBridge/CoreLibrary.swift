@@ -14,6 +14,8 @@ struct SnapshotTrack: Encodable {
   var kind = "local"
   var art = false
   var sortTitle = "", sortArtist = "", sortAlbum = "", sortAlbumArtist = ""
+  /// The Apple Music catalog id of the song (the private `storeItemID`), when it has one.
+  var storeId: Int64?
 }
 
 struct SnapshotPlaylist: Encodable {
@@ -23,6 +25,8 @@ struct SnapshotPlaylist: Encodable {
   var kind: String
   var special: String
   var items: [String]
+  /// The playlist's cloud id ("pl.…"), the same id the Apple Music catalog and Home use.
+  var globalId: String?
 }
 
 struct LibrarySnapshot: Encodable {
@@ -187,6 +191,7 @@ enum LibrarySnapshotter {
     let disliked = facts?.disliked ?? []
 
     let cloudType = CloudType()
+    let storeItemID = StoreItemID()
     var tracks: [SnapshotTrack] = []
     var pidByID: [UInt64: String] = [:]
     var albumArt: [String: String] = [:] // album pid → a track with artwork, for the Apple Event fallback
@@ -233,6 +238,7 @@ enum LibrarySnapshotter {
       t.sortArtist = item.artist?.sortName ?? ""
       t.sortAlbum = album.sortTitle ?? ""
       t.sortAlbumArtist = album.sortAlbumArtist ?? ""
+      t.storeId = storeItemID.value(of: item)
       tracks.append(t)
     }
 
@@ -246,13 +252,15 @@ enum LibrarySnapshotter {
       for item in items where !inLibrary.contains(item) && containers[item] == nil {
         containers[item] = pid
       }
+      let gid = globalID.value(of: p)
       out.append(SnapshotPlaylist(
         pid: pid,
         parentPid: p.parentID.map(persistentHex) ?? "",
         name: p.name,
-        kind: kind(of: p, globalID: globalID.value(of: p)),
+        kind: kind(of: p, globalID: gid),
         special: special,
-        items: items))
+        items: items,
+        globalId: gid.flatMap { $0.isEmpty ? nil : $0 }))
     }
 
     let snapshot = LibrarySnapshot(generatedAt: Int64(Date().timeIntervalSince1970), tracks: tracks, playlists: out)
@@ -319,6 +327,19 @@ private struct CloudType {
   func value(of item: ITLibMediaItem) -> Int? {
     guard supported else { return nil }
     return (item.value(forKey: "cloudType") as? NSNumber)?.intValue
+  }
+}
+
+/// Reads the private `storeItemID` of ITLibMediaItem: the song's Apple Music catalog
+/// id, the same number the iTunes Search API calls `trackId`. 0 or missing for
+/// local files and uploads. Same selector check as CloudType.
+private struct StoreItemID {
+  private let supported = ITLibMediaItem.instancesRespond(to: NSSelectorFromString("storeItemID"))
+
+  func value(of item: ITLibMediaItem) -> Int64? {
+    guard supported, let n = item.value(forKey: "storeItemID") as? NSNumber else { return nil }
+    let id = n.int64Value
+    return id > 0 ? id : nil
   }
 }
 

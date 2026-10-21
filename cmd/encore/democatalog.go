@@ -123,12 +123,14 @@ func newDemoCatalog(lib *library.Library, fake *bridge.Fake) *demoCatalog {
 		d.albums = append(d.albums, a)
 		return a.ID
 	}
-	addSong := func(s catalog.Song) {
+	addSong := func(s catalog.Song) int64 {
 		s.ID = d.id("song:" + strconv.FormatInt(s.AlbumID, 10) + "|" + strconv.Itoa(s.DiscNumber) + "|" + strconv.Itoa(s.TrackNumber) + "|" + s.Name)
 		s.Streamable = !strings.Contains(s.Name, "Bonus Track")
 		d.tracks[s.AlbumID] = append(d.tracks[s.AlbumID], len(d.songs))
 		d.songs = append(d.songs, s)
+		return s.ID
 	}
+	libSong := map[string]int64{} // library pid → the catalog song it is
 
 	for _, a := range lib.Albums {
 		if len(a.Tracks) == 0 || a.Artist == "" {
@@ -143,7 +145,7 @@ func newDemoCatalog(lib *library.Library, fake *bridge.Fake) *demoCatalog {
 			TrackCount: len(a.Tracks), Released: rel, Artwork: demoArtURL(key),
 		})
 		for i, t := range a.Tracks {
-			addSong(catalog.Song{
+			libSong[t.PID] = addSong(catalog.Song{
 				AlbumID: id, ArtistID: aid, Name: t.Title, Artist: t.Artist, Album: a.Title,
 				Genre: genre, Duration: t.Duration, TrackNumber: cmp.Or(t.TrackNo, i+1), DiscNumber: max(t.Disc, 1),
 				Released: rel, Explicit: t.Explicit, Artwork: demoArtURL(key),
@@ -203,6 +205,15 @@ func newDemoCatalog(lib *library.Library, fake *bridge.Fake) *demoCatalog {
 	}
 
 	if fake != nil {
+		// Most library songs know their catalog id, as songs added from
+		// Apple Music do; one in five doesn't (a local file, an upload), so
+		// the demo shows the match by title and artist too.
+		fake.SetStoreIDs(func(t bridge.SnapshotTrack) int64 {
+			if fnv32(t.PID)%5 == 0 {
+				return 0
+			}
+			return libSong[t.PID]
+		})
 		reg := make([]bridge.FakeCatalogSong, len(d.songs))
 		for i, s := range d.songs {
 			reg[i] = bridge.FakeCatalogSong{

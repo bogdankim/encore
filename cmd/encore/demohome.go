@@ -108,6 +108,19 @@ func newDemoHome(d *demoCatalog) demoHome {
 		}
 	}
 
+	// A few songs the demo library has go in among the new ones, so the
+	// page shows what is in the library and what isn't.
+	var owned []home.Item
+	for _, s := range d.songs {
+		if len(owned) < 4 && !isDemoArtist(s.Artist) && s.Streamable && s.TrackNumber == 2 && !strings.HasPrefix(s.Artwork, "demo://cover/extra-") {
+			owned = append(owned, home.Item{Type: home.TypeSong, ID: strconv.FormatInt(s.ID, 10), Title: s.Name, Subtitle: s.Artist, Art: demoTemplate(s.Artwork), Explicit: s.Explicit})
+		}
+	}
+	for i, it := range owned {
+		at := min(1+2*i, len(songs))
+		songs = append(songs[:at], append([]home.Item{it}, songs[at:]...)...)
+	}
+
 	page := func(now time.Time) *home.Page {
 		hour := now.Truncate(time.Hour)
 		live := func(id, name string, show string) home.Item {

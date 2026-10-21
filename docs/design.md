@@ -264,16 +264,25 @@ index so art never waits behind a snapshot.
   "available": true,                     // false for "no longer available" cloud items
   "kind": "subscription" | "uploaded" | "purchased" | "local",
   "art": true,
-  "sortTitle": "…", "sortArtist": "…", "sortAlbum": "…", "sortAlbumArtist": "…"
+  "sortTitle": "…", "sortArtist": "…", "sortAlbum": "…", "sortAlbumArtist": "…",
+  "storeId": 1561682197                  // Apple Music catalog song id; omitted for local files and uploads
 }
 // Playlist
 {
   "pid": "HEX", "parentPid": "HEX" | "", "name": "…",
   "kind": "user" | "smart" | "folder" | "subscription" | "genius",
   "special": "" | "library" | "music" | "purchased" | "favorites" | "…",
-  "items": ["HEX", …]
+  "items": ["HEX", …],
+  "globalId": "pl.bed492442a53481f98e98c6c4da9e01d"   // cloud id the catalog and Home use; omitted without one
 }
 ```
+
+`storeId` is iTunesLibrary's private `storeItemID` (the same number the iTunes
+Search API calls `trackId`) and `globalId` its private `globalID` for playlists
+(`pl.…`). Both are read the way `cloudType` is, behind a selector check, and are
+left out when the key is missing or 0. The Apple Events snapshot has neither, so
+matching falls back to names there (see "Apple Music items in the library").
+Albums have no id of this kind (`ITLibAlbum`'s `adamID` and `cloudAlbumID` read 0).
 
 `favorited` comes from one AE (`persistent ID of every track of library playlist 1
 whose favorited is true`) merged into the ITLibrary data. `inLibrary` likewise
@@ -365,8 +374,36 @@ from `persistent ID of every track of library playlist 1`. The queue playlist
   (Apple's favorited songs), Playlists (tree with folders).
 - Default sorting follows Apple Music: sort fields first, case-insensitive,
   leading "The " ignored, diacritics folded.
+- The cache file is version 2: version 1 added nothing but still loads, without
+  store ids and global ids, until the next snapshot replaces it.
 - Search keys are precomputed per entity: folded lowercase strings for title,
   artist, album.
+
+### Apple Music items in the library
+
+Wherever the UI lists catalog items it marks the ones the library has (see
+"Visual language"). `internal/library/match.go` is the one matcher, indexed in
+`Build` (about 12 ms on 50k songs) so a lookup is a map access:
+
+- Song: by catalog id (`Track.StoreID`) among the songs in the library
+  (`InLibrary`; a song that only sits in a playlist is not in it). Without an
+  id on both sides, by `SongKey` of the title (a featured artist or a remaster
+  note dropped, "(Live)" and "(Acoustic)" kept) and `SameArtist` (the lead
+  artist: "Daft Punk" matches "Daft Punk & Pharrell Williams"). A library
+  song with an id of its own that differs from the catalog's is another
+  release, so it does not match by name.
+- Album: by `AlbumKey` of the title (edition notes such as "(Deluxe
+  Edition)", "[Remastered]" and "(Explicit)", and a trailing " - Single" or
+  " - EP" dropped) and the artist (folded, "The" optional), among the albums
+  the library lists. Albums carry no ids, so there is no id match. The album
+  page also counts the album as in the library when one of its songs matches by
+  id, for an album the library titles differently.
+- Playlist: by cloud id (`Playlist.GlobalID`) only. Folders never match.
+- Artists are matched for the "In Your Library" link on an artist page but
+  never marked in lists: one song is enough to have an artist.
+
+"Open in Library" uses the same keys, with a looser song match (any library
+song of that title and artist, id or not).
 
 ## Search (`internal/search`)
 
@@ -427,7 +464,8 @@ override any token in config.
   message for 3 s or until the next key or click. Without the footer, that
   name or status sits at the right end of the rule under the player bar. A which-key popup appears
   after the leader.
-- Glyphs: `▶` playing, `♥` favorited, `E` boxed explicit tag in dim, `·`
+- Glyphs: `▶` playing, `♥` favorited, `✓` (dim) an Apple Music item the
+  library already has, `E` boxed explicit tag in dim, `·`
   separators, `━` progress fill with `╸` head and `─` rest, `▁▂▃▄▅▆▇█` volume.
   Media button glyphs come from the active glyph set (Nerd Font symbols on WezTerm,
   which bundles them; plain Unicode elsewhere). No emoji anywhere.
@@ -489,6 +527,13 @@ override any token in config.
 - Recently Added: album grid (art tiles with title and artist under each).
 - Artists: two columns: artist list, and the selected artist's albums (grid) with
   their top songs.
+- Apple Music items the library has carry a dim `✓`, always in a fixed place:
+  in the favorite column's slot (two cells before Time) of an Apple Music
+  album's track list and an artist's top songs; at the right edge of the title
+  line of an album tile or a Home tile, the title giving up its last two cells;
+  at the left edge of the time column of an Apple Music search row. Library
+  views never show it. Up Next doesn't either: its rows are tight and what
+  plays next isn't a library question.
 - Albums: grid by default, list with `v` (or the toggle in the title line).
   `o` cycles the sort and `O` reverses it.
 - Songs: table (Title, Artist, Album, a heart column, Time; Plays and Added

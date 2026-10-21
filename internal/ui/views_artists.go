@@ -98,7 +98,7 @@ func (p *artistPage) bindCatalog(name string, albums []*library.Album, songs []*
 	if len(top) > 0 && oneAlbum(top) {
 		cols = []Column{ColTitle, ColTime}
 	}
-	p.top = NewTrackTable(top, TableOptions{Source: p.source(), Natural: true, Columns: cols, NoHeart: true})
+	p.top = NewTrackTable(top, TableOptions{Source: p.source(), Natural: true, Columns: cols, NoHeart: true, LibMark: true})
 	if same {
 		p.grid.SetItems(albums)
 		return

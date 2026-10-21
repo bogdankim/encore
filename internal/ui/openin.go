@@ -262,8 +262,7 @@ func songOn(a *library.Album, title string) *library.Track {
 // librarySongFor finds the library song with this title by this artist,
 // on the album of that name when the library has it.
 func librarySongFor(lib *library.Library, title, artist, album string) *library.Track {
-	key := songMatchKey(title)
-	if key == "" {
+	if lib == nil {
 		return nil
 	}
 	if a := libraryAlbumFor(lib, album, artist); a != nil {
@@ -271,13 +270,7 @@ func librarySongFor(lib *library.Library, title, artist, album string) *library.
 			return t
 		}
 	}
-	for _, t := range lib.Songs {
-		// the key is the folded title without its notes: a prefix
-		if strings.HasPrefix(t.FoldTitle, key) && songMatchKey(t.Title) == key && sameArtist(t.Artist, artist) {
-			return t
-		}
-	}
-	return nil
+	return lib.FindSong(title, artist)
 }
 
 // catalogMatch is what a library item turned out to be on Apple Music:
@@ -604,51 +597,9 @@ func pickArtist(cands []catalog.Artist, name string) (catalog.Artist, bool) {
 	return cands[best], true
 }
 
-// sameName compares artist names folded, with a leading "The" optional.
-func sameName(a, b string) bool {
-	fa, fb := library.Fold(a), library.Fold(b)
-	return fa != "" && strings.TrimPrefix(fa, "the ") == strings.TrimPrefix(fb, "the ")
-}
-
-// artistJoins separate a lead artist from the others credited.
-var artistJoins = []string{" & ", ", ", " and ", " x ", " feat. ", " feat ", " ft. ", " featuring ", " with "}
-
-// sameArtist reports whether two artist credits name the same lead
-// artist: "Daft Punk" and "Daft Punk & Pharrell Williams" do.
-func sameArtist(a, b string) bool {
-	if sameName(a, b) {
-		return true
-	}
-	fa, fb := library.Fold(a), library.Fold(b)
-	if len(fa) > len(fb) {
-		fa, fb = fb, fa
-	}
-	if fa == "" {
-		return false
-	}
-	for _, j := range artistJoins {
-		if strings.HasPrefix(fb, fa+j) {
-			return true
-		}
-	}
-	return false
-}
-
-var (
-	// songNoteRe is a note that doesn't make a song another recording: a
-	// featured artist or a remaster.
-	songNoteRe = regexp.MustCompile(`(?i)\s*[(\[](feat\.?|ft\.?|featuring|with)\s[^)\]]*[)\]]|\s*[(\[][^)\]]*\bremaster(ed)?\b[^)\]]*[)\]]|\s+-\s+(\d{4}\s+)?remaster(ed)?(\s+\d{4})?(\s+version)?$`)
-	// searchNoteRe is any trailing note in brackets, left out of a
-	// search: Apple may write it differently.
-	searchNoteRe = regexp.MustCompile(`\s*[(\[][^)\]]*[)\]]\s*$`)
-)
-
-// songMatchKey folds a song title for matching, without a featured
-// artist or remaster note. "(Live)" and "(Acoustic)" stay: they are other
-// recordings.
-func songMatchKey(title string) string {
-	return library.Fold(strings.TrimSpace(songNoteRe.ReplaceAllString(title, "")))
-}
+// searchNoteRe is any trailing note in brackets, left out of a search: Apple
+// may write it differently.
+var searchNoteRe = regexp.MustCompile(`\s*[(\[][^)\]]*[)\]]\s*$`)
 
 // searchTitle is a title as a search term: without trailing notes in
 // brackets and " - Single" or " - EP".

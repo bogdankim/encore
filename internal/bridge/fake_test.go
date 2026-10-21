@@ -190,7 +190,7 @@ func TestFakeLibraryShape(t *testing.T) {
 	between("folders", folders, 2, 2)
 	between("folder children", children, 4, 10)
 	between("smart", smart, 3, 8)
-	between("subscription", subscription, 1, 1)
+	between("subscription", subscription, 1, 3) // Northbound, and the two followed Apple Music playlists
 	between("subscription-only tracks", outside, 10, 60)
 }
 
@@ -382,7 +382,7 @@ func TestFakePlayErrors(t *testing.T) {
 
 	var sub SnapshotPlaylist
 	for _, p := range s.Playlists {
-		if p.Kind == "subscription" {
+		if p.Kind == "subscription" && p.GlobalID == "" { // not a followed Apple Music playlist
 			sub = p
 		}
 	}

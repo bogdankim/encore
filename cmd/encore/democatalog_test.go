@@ -77,3 +77,67 @@ func TestDemoCatalog(t *testing.T) {
 		t.Fatalf("art: %v %v", img.Bounds(), err)
 	}
 }
+
+// The demo library knows the catalog ids of most of its songs and follows
+// two of the demo Home page's playlists, so the demo shows the marks for
+// items already in the library, by id and by name.
+func TestDemoLibraryMarks(t *testing.T) {
+	ctx := context.Background()
+	f := bridge.NewFake(1)
+	defer f.Close()
+	snap, _ := f.Snapshot(ctx)
+	d := newDemoCatalog(library.Build(snap), f)
+	d.delay = 0
+	snap, _ = f.Snapshot(ctx) // now with catalog ids
+	lib := library.Build(snap)
+
+	withID := 0
+	for _, s := range lib.Songs {
+		if s.StoreID > 0 {
+			withID++
+		}
+	}
+	if share := withID * 100 / len(lib.Songs); share < 70 || share > 90 {
+		t.Errorf("%d%% of the songs have a catalog id", share)
+	}
+	// every catalog song of a library album is in the library, by id or name
+	la := lib.Albums[0]
+	_, songs, err := d.AlbumTracks(ctx, albumID(t, d, la.Title, la.Artist))
+	if err != nil || len(songs) != len(la.Tracks) {
+		t.Fatalf("album songs %d, %v", len(songs), err)
+	}
+	for _, s := range songs {
+		if lib.MatchSong(s.ID, s.Name, s.Artist) == nil {
+			t.Errorf("%q is not in the library", s.Name)
+		}
+	}
+	if lib.FindAlbum(la.Title, la.Artist) == nil {
+		t.Error("library album not found by name")
+	}
+	// the extra albums are not
+	res, _ := d.Search(ctx, "Night Versions", 5)
+	for _, a := range res.Albums {
+		if lib.FindAlbum(a.Name, a.Artist) != nil {
+			t.Errorf("%q is in the library", a.Name)
+		}
+	}
+	for _, id := range []string{"pl.demo-indie-rising", "pl.demo-chill-vibes"} {
+		if lib.PlaylistByGlobalID(id) == nil {
+			t.Errorf("playlist %s is not in the library", id)
+		}
+	}
+	if lib.PlaylistByGlobalID("pl.demo-todays-hits") != nil {
+		t.Error("an unfollowed playlist is in the library")
+	}
+}
+
+func albumID(t *testing.T, d *demoCatalog, title, artist string) int64 {
+	t.Helper()
+	for _, a := range d.albums {
+		if a.Name == title && a.Artist == artist {
+			return a.ID
+		}
+	}
+	t.Fatalf("no catalog album %q", title)
+	return 0
+}

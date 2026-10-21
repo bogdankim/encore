@@ -98,6 +98,7 @@ func Build(s *bridge.Snapshot) *Library {
 	}
 
 	buildPlaylists(l, s.Playlists)
+	l.buildMatch()
 	return l
 }
 
@@ -203,6 +204,7 @@ func (b *builder) fillTrack(t *Track, st *bridge.SnapshotTrack) {
 		Available:   st.Available,
 		Kind:        st.Kind,
 		HasArt:      st.Art,
+		StoreID:     st.StoreID,
 	}
 	t.FoldTitle = Fold(st.Title)
 	t.FoldArtist = b.fold(st.Artist)
@@ -482,6 +484,7 @@ func buildPlaylists(l *Library, src []bridge.SnapshotPlaylist) {
 			Name:     sp.Name,
 			Kind:     sp.Kind,
 			Special:  sp.Special,
+			GlobalID: sp.GlobalID,
 			FoldName: Fold(sp.Name),
 		}
 		if sp.Kind != "folder" {

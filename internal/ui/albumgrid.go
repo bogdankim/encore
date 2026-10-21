@@ -688,7 +688,8 @@ func (g *AlbumGrid) renderTiles(c *Ctx) []string {
 				if a.Key == playing {
 					l.add(toneAccent, t.G.Playing).pad(1)
 				}
-				return l.add(title, a.Title).String()
+				tileTitle(l, title, a.Title, c.CatalogAlbumTileInLibrary(a), &t.G)
+				return l.String()
 			}, len(row))
 		}
 		if len(lines) < th {
@@ -712,6 +713,33 @@ func (g *AlbumGrid) renderTiles(c *Ctx) []string {
 		}
 	}
 	return lines
+}
+
+// tileTitle writes a tile's title from l's current column to its end. With
+// mark, an Apple Music item the library has, the title gives up its last two
+// cells and the check takes the last one, so the checks of a row line up at
+// the tiles' right edges.
+func tileTitle(l *line, tn tone, title string, mark bool, g *theme.Glyphs) {
+	room := l.w - l.col()
+	if !mark || room < libMarkMinW {
+		l.add(tn, title)
+		return
+	}
+	titleMark(l, tn, title, room, true, g)
+}
+
+// libMarkMinW is the narrowest field that still gets a check: below it the
+// title keeps the room.
+const libMarkMinW = 8
+
+// titleMark writes title in a field w cells wide, with the check in the
+// field's last cell when mark is set and the field is wide enough.
+func titleMark(l *line, tn tone, title string, w int, mark bool, g *theme.Glyphs) {
+	if !mark || w < libMarkMinW {
+		l.fit(tn, title, w)
+		return
+	}
+	l.fit(tn, title, w-2).pad(1).add(toneDim, g.InLib)
 }
 
 // tileRow draws the art of a row of tiles as one image, where the terminal
@@ -778,7 +806,9 @@ func (g *AlbumGrid) renderList(c *Ctx) []string {
 		} else {
 			l.pad(1)
 		}
-		l.pad(1).fit(main, a.Title, cols.title).pad(columnGap).
+		l.pad(1)
+		titleMark(l, main, a.Title, cols.title, c.CatalogAlbumTileInLibrary(a), &t.G)
+		l.pad(columnGap).
 			fit(toneDim, a.Artist, cols.artist).pad(columnGap).
 			right(toneDim, yearText(a.Year), cols.year).pad(columnGap).
 			right(toneDim, count(len(a.Tracks)), cols.songs)

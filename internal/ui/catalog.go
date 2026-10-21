@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"errors"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -220,39 +219,19 @@ func (c *Ctx) PlayingTrackPID() string {
 // Album matching: a catalog album or artist that is also in the library
 // links to its library page.
 
-var editionRe = regexp.MustCompile(`\s*[(\[][^)\]]*\b(edition|remaster(ed)?|deluxe|expanded|version|explicit|clean|bonus)\b[^)\]]*[)\]]\s*$`)
-
-// albumMatchKey folds an album title for matching: case, diacritics, a
-// trailing " - Single" or " - EP", and an edition note such as
-// "(Deluxe Edition)" don't count.
-func albumMatchKey(title string) string {
-	s := strings.ToLower(strings.TrimSpace(title))
-	for {
-		t := editionRe.ReplaceAllString(s, "")
-		t = strings.TrimSuffix(strings.TrimSuffix(t, " - single"), " - ep")
-		if t == s {
-			break
-		}
-		s = t
-	}
-	return library.Fold(s)
-}
+// albumMatchKey, songMatchKey, sameName and sameArtist are the library's own
+// matching rules (library/match.go), which the marks for items already in the
+// library share.
+var (
+	albumMatchKey = library.AlbumKey
+	songMatchKey  = library.SongKey
+	sameName      = library.SameName
+	sameArtist    = library.SameArtist
+)
 
 // libraryAlbumFor finds the library album with this title by this artist.
 func libraryAlbumFor(lib *library.Library, title, artist string) *library.Album {
-	if lib == nil || title == "" {
-		return nil
-	}
-	key, art := albumMatchKey(title), library.Fold(artist)
-	for _, a := range lib.Albums {
-		if a.FoldArtist != art && library.Fold(a.Artist) != art {
-			continue
-		}
-		if albumMatchKey(a.Title) == key {
-			return a
-		}
-	}
-	return nil
+	return lib.FindAlbum(title, artist)
 }
 
 // libraryArtistFor finds the library artist with this name.

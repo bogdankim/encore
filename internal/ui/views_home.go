@@ -862,7 +862,8 @@ func (v *HomeView) renderBody(c *Ctx) []string {
 				if homePlaying(c, it) {
 					l.add(toneAccent, t.G.Playing).pad(1)
 				}
-				return l.add(tn, it.Title).String()
+				tileTitle(l, tn, it.Title, c.HomeItemInLibrary(it), &t.G)
+				return l.String()
 			}, "", ""), homeRow{kind: rowCaption, shelf: k})
 		}
 		if len(lines) < bh {

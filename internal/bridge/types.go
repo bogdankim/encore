@@ -92,6 +92,10 @@ type SnapshotTrack struct {
 	SortArtist      string `json:"sortArtist"`
 	SortAlbum       string `json:"sortAlbum"`
 	SortAlbumArtist string `json:"sortAlbumArtist"`
+	// StoreID is the song's Apple Music catalog id (iTunesLibrary's private
+	// storeItemID), 0 for local files, uploads and snapshots read through
+	// Apple Events.
+	StoreID int64 `json:"storeId,omitempty"`
 }
 
 // SnapshotPlaylist is one playlist as written by library.snapshot.
@@ -102,6 +106,9 @@ type SnapshotPlaylist struct {
 	Kind      string   `json:"kind"`    // user, smart, folder, subscription, genius
 	Special   string   `json:"special"` // "", library, music, purchased, favorites, ...
 	Items     []string `json:"items"`
+	// GlobalID is the playlist's cloud id ("pl.…"), the id the Apple Music
+	// catalog and Home use; "" for a playlist that has none.
+	GlobalID string `json:"globalId,omitempty"`
 }
 
 // Snapshot is the whole library.

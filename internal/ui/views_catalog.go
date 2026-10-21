@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -194,7 +195,7 @@ type CatalogAlbumView struct {
 func newCatalogAlbumView(seed catalog.Album) *CatalogAlbumView {
 	v := &CatalogAlbumView{seed: seed, info: seed}
 	v.AlbumView = NewAlbumView(v.pageAlbum(nil))
-	v.noHeart, v.kind = true, player.KindCatalog
+	v.noHeart, v.libMark, v.kind = true, true, player.KindCatalog
 	return v
 }
 
@@ -254,6 +255,22 @@ func (v *CatalogAlbumView) match(lib *library.Library) {
 	}
 	v.lib = lib
 	v.libAlbum = libraryAlbumFor(lib, v.info.Name, v.info.Artist)
+	if v.libAlbum == nil {
+		v.libAlbum = libraryAlbumOfSongs(lib, v.album.Tracks)
+	}
+}
+
+// libraryAlbumOfSongs is the library album of the first of the catalog
+// songs ts the library has by id, for an album whose title the library
+// spells differently.
+func libraryAlbumOfSongs(lib *library.Library, ts []*library.Track) *library.Album {
+	for _, t := range ts {
+		id, _ := strconv.ParseInt(strings.TrimPrefix(t.PID, "store:"), 10, 64)
+		if l := lib.SongByStoreID(id); l != nil && l.Album != nil {
+			return l.Album
+		}
+	}
+	return nil
 }
 
 func (v *CatalogAlbumView) Reindex(lib *library.Library) View {
