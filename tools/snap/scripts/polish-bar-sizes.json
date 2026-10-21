@@ -1,0 +1,22 @@
+[
+ {"wait": 1500},
+ {"keys": ["space", "g", "s"]},
+ {"wait": 200},
+ {"keys": ["enter"]},
+ {"wait": 1500},
+ {"shot": "polish-bar/01-200x55"},
+ {"resize": [140, 42]}, {"wait": 300},
+ {"shot": "polish-bar/02-140x42"},
+ {"resize": [100, 30]}, {"wait": 300},
+ {"shot": "polish-bar/03-100x30"},
+ {"resize": [80, 24]}, {"wait": 300},
+ {"shot": "polish-bar/04-80x24"},
+ {"resize": [60, 18]}, {"wait": 300},
+ {"shot": "polish-bar/05-60x18"},
+ {"resize": [59, 18]}, {"wait": 300},
+ {"shot": "polish-bar/06-59x18"},
+ {"resize": [40, 12]}, {"wait": 300},
+ {"shot": "polish-bar/07-40x12"},
+ {"keys": ["q"]},
+ {"expectExit": 3000}
+]

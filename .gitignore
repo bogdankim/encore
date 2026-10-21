@@ -1,0 +1,11 @@
+/bin/
+/dist/
+bridge/.build/
+bridge/.swiftpm/
+internal/bridge/embed/encore-bridge
+tools/snap/node_modules/
+tools/snap/out/
+*.test
+.DS_Store
+tools/snap/fonts/*.ttf
+*.log

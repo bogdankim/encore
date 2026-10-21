@@ -1,0 +1,19 @@
+[
+  {"waitFor": "Recently Added", "timeout": 10000},
+  {"wait": 1500},
+  {"shot": "sizes-recent"},
+  {"keys": ["l", "j"]},
+  {"wheel": [50, 15], "dy": 1},
+  {"wait": 400},
+  {"shot": "sizes-wheel"},
+  {"keys": ["space", "/"]},
+  {"wait": 300},
+  {"shot": "sizes-search"},
+  {"keys": ["esc"]},
+  {"wait": 200},
+  {"keys": ["enter"]},
+  {"wait": 800},
+  {"shot": "sizes-album"},
+  {"keys": ["q"]},
+  {"expectExit": 3000}
+]

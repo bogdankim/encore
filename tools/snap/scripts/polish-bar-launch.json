@@ -1,0 +1,14 @@
+[
+ {"wait": 1500},
+ {"shot": "polish-bar/launch-01-140x42"},
+ {"resize": [60, 18]}, {"wait": 300},
+ {"shot": "polish-bar/launch-02-60x18"},
+ {"resize": [120, 18]}, {"wait": 300},
+ {"keys": ["space", "g", "s"]}, {"wait": 200},
+ {"keys": ["enter"]}, {"wait": 1200},
+ {"shot": "polish-bar/launch-03-120x18-playing"},
+ {"move": [40, 0]},
+ {"shot": "polish-bar/launch-04-120x18-hover-title"},
+ {"keys": ["q"]},
+ {"expectExit": 3000}
+]

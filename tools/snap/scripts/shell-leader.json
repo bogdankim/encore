@@ -1,0 +1,93 @@
+[
+ {
+  "waitFor": "Library",
+  "timeout": 15000
+ },
+ {
+  "wait": 300
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "s"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "keys": [
+   "/"
+  ]
+ },
+ {
+  "type": "amber"
+ },
+ {
+  "keys": [
+   "enter"
+  ]
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "shot": "shell/20-filter-cleared"
+ },
+ {
+  "keys": [
+   "space"
+  ]
+ },
+ {
+  "shot": "shell/21-leader"
+ },
+ {
+  "keys": [
+   "g"
+  ]
+ },
+ {
+  "shot": "shell/22-leader-go"
+ },
+ {
+  "keys": [
+   "f"
+  ]
+ },
+ {
+  "shot": "shell/23-favorites"
+ },
+ {
+  "click": [
+   3,
+   22
+  ]
+ },
+ {
+  "shot": "shell/24-folder-open"
+ },
+ {
+  "click": [
+   8,
+   23
+  ]
+ },
+ {
+  "shot": "shell/25-playlist"
+ },
+ {
+  "keys": [
+   "q"
+  ]
+ },
+ {
+  "expectExit": 3000
+ }
+]

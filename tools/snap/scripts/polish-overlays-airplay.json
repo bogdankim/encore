@@ -1,0 +1,127 @@
+[
+ {
+  "waitFor": "Library",
+  "timeout": 10000
+ },
+ {
+  "wait": 600
+ },
+ {
+  "keys": [
+   "space",
+   "a"
+  ],
+  "delay": 150
+ },
+ {
+  "waitFor": "Kitchen",
+  "timeout": 3000
+ },
+ {
+  "shot": "01-airplay-open"
+ },
+ {
+  "click": [
+   95,
+   7
+  ]
+ },
+ {
+  "wait": 400
+ },
+ {
+  "shot": "02-click-living-adds"
+ },
+ {
+  "drag": {
+   "from": [
+    124,
+    7
+   ],
+   "to": [
+    127,
+    7
+   ]
+  }
+ },
+ {
+  "wait": 400
+ },
+ {
+  "shot": "03-drag-living-volume"
+ },
+ {
+  "click": [
+   95,
+   8
+  ],
+  "button": "right"
+ },
+ {
+  "wait": 400
+ },
+ {
+  "shot": "04-right-click-kitchen-only"
+ },
+ {
+  "click": [
+   95,
+   6
+  ]
+ },
+ {
+  "wait": 400
+ },
+ {
+  "click": [
+   95,
+   6
+  ]
+ },
+ {
+  "wait": 400
+ },
+ {
+  "shot": "05-remove-macbook-again"
+ },
+ {
+  "move": [
+   95,
+   9
+  ]
+ },
+ {
+  "shot": "06-hover-unavailable"
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "space"
+  ],
+  "delay": 130
+ },
+ {
+  "wait": 400
+ },
+ {
+  "wait": 400
+ },
+ {
+  "assert": "at least one output"
+ },
+ {
+  "shot": "07-last-output"
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "shot": "08-closed"
+ }
+]

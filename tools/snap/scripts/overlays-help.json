@@ -1,0 +1,12 @@
+[
+  {"waitFor": "Songs", "timeout": 10000},
+  {"shot": "help"},
+  {"keys": ["j", "j", "j", "ctrl+d"]},
+  {"shot": "help-scrolled"},
+  {"keys": ["/"]},
+  {"type": "lyr"},
+  {"shot": "help-filter"},
+  {"keys": ["esc"]},
+  {"keys": ["esc"]},
+  {"assertNot": "Navigation"}
+]

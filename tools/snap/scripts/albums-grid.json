@@ -1,0 +1,69 @@
+[
+ {
+  "waitFor": "Albums",
+  "timeout": 10000
+ },
+ {
+  "shot": "albums-grid"
+ },
+ {
+  "keys": [
+   "l",
+   "l",
+   "j"
+  ]
+ },
+ {
+  "move": [
+   60,
+   20
+  ]
+ },
+ {
+  "shot": "albums-grid-moved"
+ },
+ {
+  "keys": [
+   "/"
+  ]
+ },
+ {
+  "type": "love"
+ },
+ {
+  "shot": "albums-filter"
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "keys": [
+   "v"
+  ]
+ },
+ {
+  "shot": "albums-list"
+ },
+ {
+  "keys": [
+   "v",
+   "G"
+  ]
+ },
+ {
+  "shot": "albums-bottom"
+ },
+ {
+  "keys": [
+   "q"
+  ]
+ },
+ {
+  "expectExit": 3000
+ }
+]

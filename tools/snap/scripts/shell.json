@@ -1,0 +1,201 @@
+[
+ {
+  "waitFor": "Library",
+  "timeout": 15000
+ },
+ {
+  "wait": 300
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "s"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "shell/01-initial"
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "j"
+  ]
+ },
+ {
+  "shot": "shell/02-select"
+ },
+ {
+  "keys": [
+   "ctrl+d"
+  ]
+ },
+ {
+  "shot": "shell/03-halfpage"
+ },
+ {
+  "wheel": [
+   80,
+   20
+  ],
+  "dy": 4
+ },
+ {
+  "move": [
+   80,
+   15
+  ]
+ },
+ {
+  "shot": "shell/04-wheel-hover"
+ },
+ {
+  "keys": [
+   "h",
+   "j",
+   "j"
+  ]
+ },
+ {
+  "shot": "shell/05-sidebar-focus"
+ },
+ {
+  "keys": [
+   "l"
+  ]
+ },
+ {
+  "click": [
+   71,
+   7
+  ]
+ },
+ {
+  "shot": "shell/06-sort-artist"
+ },
+ {
+  "click": [
+   71,
+   7
+  ]
+ },
+ {
+  "shot": "shell/07-sort-artist-desc"
+ },
+ {
+  "click": [
+   30,
+   7
+  ]
+ },
+ {
+  "keys": [
+   "/"
+  ]
+ },
+ {
+  "type": "amber m"
+ },
+ {
+  "shot": "shell/08-filter"
+ },
+ {
+  "keys": [
+   "enter"
+  ]
+ },
+ {
+  "shot": "shell/09-filter-kept"
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "keys": [
+   "space"
+  ]
+ },
+ {
+  "shot": "shell/10-whichkey"
+ },
+ {
+  "keys": [
+   "g"
+  ]
+ },
+ {
+  "shot": "shell/11-whichkey-go"
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "click": [
+   40,
+   12
+  ],
+  "double": true
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "shell/12-play-double"
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "enter"
+  ]
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "shell/13-play-enter"
+ },
+ {
+  "click": [
+   80,
+   2
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "shot": "shell/14-seek"
+ },
+ {
+  "drag": {
+   "from": [
+    111,
+    1
+   ],
+   "to": [
+    117,
+    1
+   ]
+  }
+ },
+ {
+  "shot": "shell/15-volume"
+ },
+ {
+  "keys": [
+   "q"
+  ]
+ },
+ {
+  "expectExit": 3000
+ }
+]

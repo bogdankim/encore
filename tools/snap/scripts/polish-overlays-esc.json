@@ -1,0 +1,668 @@
+[
+ {
+  "waitFor": "Library",
+  "timeout": 10000
+ },
+ {
+  "wait": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "s"
+  ],
+  "delay": 130
+ },
+ {
+  "wait": 400
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "a",
+   "l"
+  ],
+  "delay": 130
+ },
+ {
+  "wait": 400
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "a",
+   "r"
+  ],
+  "delay": 130
+ },
+ {
+  "wait": 400
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "g",
+   "g",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "wait": 150
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ },
+ {
+  "keys": [
+   "j",
+   "m"
+  ],
+  "delay": 120
+ },
+ {
+  "assert": "Add to Up Next",
+  "timeout": 800
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 130
+ },
+ {
+  "assertNot": "Add to Up Next",
+  "timeout": 600
+ }
+]

@@ -1,0 +1,181 @@
+[
+ {
+  "waitFor": "Library",
+  "timeout": 15000
+ },
+ {
+  "wait": 300
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "s"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "200x55/01-songs"
+ },
+ {
+  "move": [
+   40,
+   13
+  ]
+ },
+ {
+  "shot": "200x55/02-hover-unavailable"
+ },
+ {
+  "move": [
+   195,
+   9
+  ]
+ },
+ {
+  "shot": "200x55/03-hover-heart"
+ },
+ {
+  "shot": "200x55/03z-hover-heart-zoom",
+  "region": [
+   160,
+   7,
+   40,
+   4
+  ],
+  "scale": 3
+ },
+ {
+  "keys": [
+   "/"
+  ]
+ },
+ {
+  "type": "amber c"
+ },
+ {
+  "shot": "200x55/04-filter"
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 150
+ },
+ {
+  "click": [
+   196,
+   7
+  ]
+ },
+ {
+  "shot": "200x55/05-sort-time"
+ },
+ {
+  "click": [
+   196,
+   7
+  ]
+ },
+ {
+  "shot": "200x55/06-sort-time-desc"
+ },
+ {
+  "click": [
+   40,
+   10
+  ],
+  "double": true
+ },
+ {
+  "wait": 400
+ },
+ {
+  "shot": "200x55/07-play-row"
+ },
+ {
+  "click": [
+   10,
+   12
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "200x55/08-favorites"
+ },
+ {
+  "click": [
+   10,
+   26
+  ]
+ },
+ {
+  "wait": 600
+ },
+ {
+  "shot": "200x55/09-playlist"
+ },
+ {
+  "move": [
+   44,
+   11
+  ]
+ },
+ {
+  "shot": "200x55/10-hover-play"
+ },
+ {
+  "move": [
+   56,
+   11
+  ]
+ },
+ {
+  "shot": "200x55/11-hover-shuffle"
+ },
+ {
+  "click": [
+   56,
+   11
+  ]
+ },
+ {
+  "wait": 500
+ },
+ {
+  "shot": "200x55/12-shuffled"
+ },
+ {
+  "keys": [
+   "space",
+   "s",
+   "p"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "type": "Moods"
+ },
+ {
+  "wait": 300
+ },
+ {
+  "keys": [
+   "enter"
+  ]
+ },
+ {
+  "wait": 600
+ },
+ {
+  "shot": "200x55/13-folder"
+ }
+]

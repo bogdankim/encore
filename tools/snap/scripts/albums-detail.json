@@ -1,0 +1,8 @@
+[
+  {"waitFor": "Play", "timeout": 10000},
+  {"shot": "album"},
+  {"keys": ["j", "j"]},
+  {"shot": "album-moved"},
+  {"keys": ["q"]},
+  {"expectExit": 3000}
+]

@@ -1,0 +1,11 @@
+[
+  {"waitFor": "Songs", "timeout": 10000},
+  {"shot": "menu"},
+  {"keys": ["j", "j"]},
+  {"shot": "menu-nav"},
+  {"move": [52, 13]},
+  {"shot": "menu-hover"},
+  {"click": [52, 13]},
+  {"assert": "Open"},
+  {"shot": "menu-click"}
+]

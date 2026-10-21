@@ -1,0 +1,18 @@
+[
+ {"waitFor": "Library", "timeout": 15000},
+ {"wait": 300},
+ {"keys": ["space", "g", "s"]},
+ {"wait": 200},
+ {"keys": ["enter"]},
+ {"wait": 1500},
+ {"click": [80, 2]},
+ {"drag": {"from": [111, 1], "to": [114, 1]}},
+ {"keys": ["s", "r"]},
+ {"move": [50, 0]},
+ {"shot": "shell/40-bar-playing", "region": [0, 0, 140, 5], "scale": 2},
+ {"keys": ["p"]},
+ {"move": [130, 20]},
+ {"shot": "shell/41-bar-paused", "region": [0, 0, 140, 5], "scale": 2},
+ {"keys": ["q"]},
+ {"expectExit": 3000}
+]

@@ -1,0 +1,21 @@
+[
+  {"waitFor": "Songs", "timeout": 10000},
+  {"shot": "search-empty"},
+  {"type": "amber"},
+  {"shot": "search-amber"},
+  {"keys": ["down", "down", "ctrl+n"]},
+  {"move": [40, 18]},
+  {"shot": "search-nav"},
+  {"keys": ["tab"]},
+  {"shot": "search-songs"},
+  {"click": [39, 8]},
+  {"assert": "Albums"},
+  {"shot": "search-click-albums"},
+  {"keys": ["ctrl+u"]},
+  {"type": "beat"},
+  {"shot": "search-fuzzy"},
+  {"keys": ["enter"]},
+  {"assert": "OpenAlbum"},
+  {"keys": ["s"]},
+  {"shot": "search-recent"}
+]

@@ -1,0 +1,20 @@
+[
+  {"waitFor": "Library", "timeout": 10000},
+  {"wait": 600},
+  {"click": [120, 1]},
+  {"waitFor": "Kitchen", "timeout": 3000},
+  {"shot": "01-opened-from-bar"},
+  {"click": [123, 6]},
+  {"wait": 500},
+  {"assert": " 20"},
+  {"shot": "02-meter-click-20"},
+  {"drag": {"from": [123, 6], "to": [139, 6]}},
+  {"wait": 600},
+  {"keys": ["esc"]},
+  {"wait": 300},
+  {"keys": ["space", "a"], "delay": 150},
+  {"waitFor": "Kitchen", "timeout": 3000},
+  {"wait": 400},
+  {"assert": "100"},
+  {"shot": "03-drag-out-committed"}
+]

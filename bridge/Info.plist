@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Linked into encore-bridge's __TEXT,__info_plist section (Package.swift). encore
+     spawns the bridge as its own TCC responsible process, so macOS reads this
+     identity and these usage strings when it asks for permissions. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.bogdankim.encore.bridge</string>
+	<key>CFBundleName</key>
+	<string>encore</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>encore reads your Music library to show your songs, albums and artwork.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>encore controls Music to play your music.</string>
+</dict>
+</plist>

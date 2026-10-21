@@ -1,0 +1,266 @@
+[
+ {
+  "waitFor": "Songs",
+  "timeout": 10000
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "s"
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "j",
+   "enter"
+  ]
+ },
+ {
+  "wait": 600
+ },
+ {
+  "keys": [
+   "space",
+   "q"
+  ]
+ },
+ {
+  "wait": 400
+ },
+ {
+  "click": [
+   80,
+   5
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "q01-open"
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "J"
+  ]
+ },
+ {
+  "shot": "q02-J-context"
+ },
+ {
+  "drag": {
+   "from": [
+    70,
+    21
+   ],
+   "to": [
+    70,
+    13
+   ]
+  },
+  "hold": true
+ },
+ {
+  "wait": 150
+ },
+ {
+  "shot": "q03-drag-held"
+ },
+ {
+  "release": [
+   70,
+   13
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "q04-dropped"
+ },
+ {
+  "click": [
+   70,
+   15
+  ],
+  "button": "right"
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "q05-menu"
+ },
+ {
+  "keys": [
+   "esc"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "keys": [
+   "x"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "q06-x"
+ },
+ {
+  "keys": [
+   "space",
+   "l"
+  ]
+ },
+ {
+  "wait": 14000
+ },
+ {
+  "click": [
+   80,
+   5
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "l01-pane"
+ },
+ {
+  "keys": [
+   "}",
+   "}"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "l02-offset"
+ },
+ {
+  "keys": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "keys": [
+   "space",
+   "L"
+  ]
+ },
+ {
+  "wait": 800
+ },
+ {
+  "shot": "l03-full"
+ },
+ {
+  "move": [
+   16,
+   22
+  ]
+ },
+ {
+  "shot": "l04-hover-play"
+ },
+ {
+  "click": [
+   16,
+   22
+  ]
+ },
+ {
+  "wait": 500
+ },
+ {
+  "shot": "l05-paused"
+ },
+ {
+  "click": [
+   16,
+   22
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "move": [
+   97,
+   1
+  ]
+ },
+ {
+  "shot": "l06-hover-close"
+ },
+ {
+  "drag": {
+   "from": [
+    7,
+    19
+   ],
+   "to": [
+    20,
+    19
+   ]
+  }
+ },
+ {
+  "wait": 500
+ },
+ {
+  "shot": "l07-dragged"
+ },
+ {
+  "click": [
+   22,
+   22
+  ]
+ },
+ {
+  "wait": 1200
+ },
+ {
+  "shot": "l08-next"
+ },
+ {
+  "click": [
+   10,
+   22
+  ]
+ },
+ {
+  "wait": 1200
+ },
+ {
+  "shot": "l09-prev"
+ },
+ {
+  "click": [
+   14,
+   8
+  ],
+  "double": true
+ },
+ {
+  "wait": 400
+ },
+ {
+  "shot": "l10-closed-by-art"
+ }
+]

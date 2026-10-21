@@ -1,0 +1,22 @@
+{
+  "name": "encore-snap",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Headless screenshot and interaction harness for the encore TUI",
+  "type": "module",
+  "bin": {
+    "snap": "./snap.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@xterm/addon-image": "0.9.0",
+    "@xterm/xterm": "6.0.0",
+    "node-pty": "1.1.0",
+    "puppeteer-core": "25.14.0"
+  },
+  "scripts": {
+    "selftest": "node snap.mjs --cwd testapp --script testapp/selftest.json -- go run ."
+  }
+}

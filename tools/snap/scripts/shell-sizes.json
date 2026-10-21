@@ -1,0 +1,89 @@
+[
+ {
+  "waitFor": "Library",
+  "timeout": 15000
+ },
+ {
+  "wait": 300
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "s"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "shell/30-100x30"
+ },
+ {
+  "keys": [
+   "enter"
+  ]
+ },
+ {
+  "wait": 1200
+ },
+ {
+  "shot": "shell/31-100x30-playing"
+ },
+ {
+  "resize": [
+   200,
+   55
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "shot": "shell/32-200x55"
+ },
+ {
+  "keys": [
+   "space",
+   "q"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "shell/33-200x55-queue-pane"
+ },
+ {
+  "resize": [
+   120,
+   18
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "shot": "shell/34-120x18-compact"
+ },
+ {
+  "resize": [
+   80,
+   24
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "shot": "shell/35-80x24"
+ },
+ {
+  "keys": [
+   "q"
+  ]
+ },
+ {
+  "expectExit": 3000
+ }
+]

@@ -1,0 +1,12 @@
+[
+  {"waitFor": "Songs", "timeout": 10000},
+  {"shot": "palette-empty"},
+  {"type": "go to"},
+  {"shot": "palette-goto"},
+  {"keys": ["ctrl+u"]},
+  {"type": "lastfm"},
+  {"shot": "palette-lastfm"},
+  {"keys": ["enter"]},
+  {"assert": "Do(settings.lastfm)"},
+  {"shot": "palette-run"}
+]

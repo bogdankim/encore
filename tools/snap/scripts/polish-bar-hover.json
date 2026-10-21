@@ -1,0 +1,308 @@
+[
+ {
+  "wait": 1500
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "s"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "keys": [
+   "enter"
+  ]
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "move": [
+   2,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-prev",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   6,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-play",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   10,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-next",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   16,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-shuffle",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   20,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-repeat",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   36,
+   0
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-title",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   36,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-artist",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   48,
+   0
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-heart",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   100,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-volume",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   116,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-airplay",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   132,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-lyrics",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   136,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-queue",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   60,
+   3
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-rule",
+  "region": [
+   0,
+   0,
+   140,
+   5
+  ],
+  "scale": 2
+ },
+ {
+  "move": [
+   60,
+   20
+  ]
+ },
+ {
+  "click": [
+   60,
+   3
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-140-rule-click"
+ },
+ {
+  "resize": [
+   80,
+   24
+  ]
+ },
+ {
+  "wait": 300
+ },
+ {
+  "move": [
+   6,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-80-play"
+ },
+ {
+  "move": [
+   60,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-80-volume"
+ },
+ {
+  "move": [
+   66,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-80-airplay"
+ },
+ {
+  "move": [
+   72,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-80-lyrics"
+ },
+ {
+  "move": [
+   76,
+   1
+  ]
+ },
+ {
+  "shot": "polish-bar/hover-80-queue"
+ },
+ {
+  "keys": [
+   "q"
+  ]
+ },
+ {
+  "expectExit": 3000
+ }
+]

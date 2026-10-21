@@ -1,0 +1,22 @@
+[
+  {"waitFor": "Library", "timeout": 10000},
+  {"wait": 600},
+  {"keys": ["space", ","], "delay": 150},
+  {"waitFor": "Connect last.fm", "timeout": 3000},
+  {"shot": "01-lastfm-setup"},
+  {"keys": ["enter"]},
+  {"wait": 200},
+  {"type": "\u001b[200~Application name\tencore\nAPI key\t0123456789abcdef0123456789abcdef\nShared secret\tfedcba9876543210fedcba9876543210\n\u001b[201~"},
+  {"wait": 300},
+  {"shot": "02-lastfm-pasted"},
+  {"keys": ["enter"]},
+  {"wait": 600},
+  {"shot": "03-lastfm-waiting"},
+  {"wait": 3000},
+  {"shot": "04-lastfm-connected"},
+  {"keys": ["esc"]},
+  {"wait": 300},
+  {"keys": ["space", ","], "delay": 150},
+  {"wait": 500},
+  {"shot": "05-lastfm-reopen"}
+]

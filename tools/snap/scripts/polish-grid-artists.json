@@ -1,0 +1,62 @@
+[
+ {
+  "waitFor": "Recently Added",
+  "timeout": 10000
+ },
+ {
+  "click": [
+   5,
+   9
+  ]
+ },
+ {
+  "wait": 1200
+ },
+ {
+  "shot": "artists"
+ },
+ {
+  "click": [
+   30,
+   8
+  ]
+ },
+ {
+  "keys": [
+   "j",
+   "j",
+   "j"
+  ]
+ },
+ {
+  "wait": 800
+ },
+ {
+  "shot": "artists-moved"
+ },
+ {
+  "keys": [
+   "enter",
+   "j",
+   "j",
+   "j",
+   "j",
+   "j",
+   "j"
+  ]
+ },
+ {
+  "wait": 500
+ },
+ {
+  "shot": "artists-page-grid"
+ },
+ {
+  "keys": [
+   "q"
+  ]
+ },
+ {
+  "expectExit": 3000
+ }
+]

@@ -1,0 +1,56 @@
+[
+ {
+  "wait": 1500
+ },
+ {
+  "keys": [
+   "space",
+   "g",
+   "s"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "shot": "100x24/01-songs"
+ },
+ {
+  "keys": [
+   "space",
+   "s",
+   "p"
+  ]
+ },
+ {
+  "wait": 200
+ },
+ {
+  "type": "Chill"
+ },
+ {
+  "wait": 300
+ },
+ {
+  "keys": [
+   "enter"
+  ]
+ },
+ {
+  "wait": 600
+ },
+ {
+  "shot": "100x24/02-playlist-compact"
+ },
+ {
+  "keys": [
+   "/"
+  ]
+ },
+ {
+  "type": "a"
+ },
+ {
+  "shot": "100x24/03-playlist-filter"
+ }
+]

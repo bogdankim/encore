@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+<style>
+  html, body { margin: 0; padding: 0; background: #272822; overflow: hidden; }
+  #term { position: absolute; left: 0; top: 0; }
+  .xterm .xterm-viewport { overflow-y: hidden !important; }
+  /* WezTerm draws every cell background before any glyph, so an icon wider
+     than its cell shows over the next cell's background. xterm.js gives such
+     a glyph its own span (letter-spacing) and the next span's background
+     covers the overflow; lift those spans above their neighbours. */
+  .xterm-rows span[style*="letter-spacing"] { position: relative; z-index: 1; }
+</style>
+<script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="node_modules/@xterm/addon-image/lib/addon-image.js"></script>
+</head>
+<body>
+<div id="term"></div>
+<script>
+// Monokai (base16), as shipped in WezTerm's built-in scheme list.
+const THEME = {
+  background: '#272822',
+  foreground: '#f8f8f2',
+  cursor: 'rgba(0,0,0,0)',
+  cursorAccent: 'rgba(0,0,0,0)',
+  selectionBackground: '#f8f8f2',
+  selectionForeground: '#272822',
+  black: '#272822', red: '#f92672', green: '#a6e22e', yellow: '#f4bf75',
+  blue: '#66d9ef', magenta: '#ae81ff', cyan: '#a1efe4', white: '#f8f8f2',
+  brightBlack: '#75715e', brightRed: '#f92672', brightGreen: '#a6e22e', brightYellow: '#f4bf75',
+  brightBlue: '#66d9ef', brightMagenta: '#ae81ff', brightCyan: '#a1efe4', brightWhite: '#f9f8f5',
+  // indexed 16..21 are overridden by the scheme (base16 extras)
+  extendedAnsi: ['#fd971f', '#cc6633', '#383830', '#49483e', '#a59f85', '#f5f4f1'],
+};
+
+const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
+
+window.snap = {
+  term: null,
+
+  async init(opts) {
+    const family = opts.fontFamily;
+    const size = opts.fontSize;
+    const first = family.split(',')[0].trim();
+    await Promise.all([
+      document.fonts.load(`${size}px ${first}`),
+      document.fonts.load(`bold ${size}px ${first}`),
+      document.fonts.load(`italic ${size}px ${first}`),
+    ]);
+    // Nerd Font icons (U+F0000.. Material Design etc.), WezTerm's built-in fallback.
+    let symbolsOk = false;
+    if (opts.symbolsFont) {
+      try {
+        const face = new FontFace('Symbols Nerd Font Mono', `url("${opts.symbolsFont}")`);
+        document.fonts.add(await face.load());
+        symbolsOk = true;
+      } catch (e) {
+        console.error('symbols font failed to load: ' + e);
+      }
+    }
+    await document.fonts.ready;
+    const fontOk = document.fonts.check(`${size}px ${first}`);
+
+    const term = new Terminal({
+      cols: opts.cols,
+      rows: opts.rows,
+      fontFamily: family,
+      fontSize: size,
+      lineHeight: opts.lineHeight,
+      letterSpacing: 0,
+      fontWeight: 'normal',
+      fontWeightBold: 'bold',
+      theme: THEME,
+      cursorStyle: 'underline',
+      cursorBlink: false,
+      cursorInactiveStyle: 'none',
+      scrollback: 0,
+      allowProposedApi: true,
+      allowTransparency: false,
+      customGlyphs: true,
+      drawBoldTextInBrightColors: true,
+      macOptionIsMeta: true,
+      windowOptions: { getWinSizePixels: true, getCellSizePixels: true, getWinSizeChars: true },
+    });
+    this.term = term;
+    term.open(document.getElementById('term'));
+
+    term.loadAddon(this.image = new ImageAddon.ImageAddon({
+      enableSizeReports: true,
+      iipSupport: true,
+      sixelSupport: true,
+      storageLimit: 256,
+    }));
+
+    term.onData(d => window.__ptyInput(d));
+    term.onBinary(d => window.__ptyInput(d, true));
+    await nextFrame();
+    return { fontOk, symbolsOk, ...this.geometry() };
+  },
+
+  geometry() {
+    const el = this.term.element.querySelector('.xterm-screen');
+    const r = el.getBoundingClientRect();
+    return {
+      x: r.left, y: r.top, width: r.width, height: r.height,
+      cols: this.term.cols, rows: this.term.rows,
+      cellW: r.width / this.term.cols, cellH: r.height / this.term.rows,
+    };
+  },
+
+  write(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Promise(r => this.term.write(bytes, r));
+  },
+
+  // Resolves once every queued write is parsed and a frame has painted.
+  async flush() {
+    await new Promise(r => this.term.write('', r));
+    this.term.refresh(0, this.term.rows - 1);
+    await nextFrame();
+    await nextFrame();
+  },
+
+  async resize(cols, rows) {
+    this.term.resize(cols, rows);
+    await this.flush();
+    return this.geometry();
+  },
+
+  text(col = 0, row = 0, cols = this.term.cols, rows = this.term.rows) {
+    const b = this.term.buffer.active;
+    const out = [];
+    for (let y = row; y < row + rows; y++) {
+      const line = b.getLine(b.viewportY + y);
+      out.push(line ? line.translateToString(true, col, col + cols).replace(/\s+$/, '') : '');
+    }
+    return out.join('\n');
+  },
+
+  modes() {
+    const m = this.term.modes;
+    return { appCursor: m.applicationCursorKeysMode, mouse: m.mouseTrackingMode, bracketedPaste: m.bracketedPasteMode };
+  },
+};
+</script>
+</body>
+</html>

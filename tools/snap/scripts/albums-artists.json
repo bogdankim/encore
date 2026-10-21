@@ -1,0 +1,10 @@
+[
+  {"waitFor": "Artists", "timeout": 10000},
+  {"shot": "artists"},
+  {"keys": ["j", "j", "j", "l"]},
+  {"shot": "artists-page"},
+  {"keys": ["j", "j", "j", "j", "j", "j"]},
+  {"shot": "artists-page-grid"},
+  {"keys": ["q"]},
+  {"expectExit": 3000}
+]

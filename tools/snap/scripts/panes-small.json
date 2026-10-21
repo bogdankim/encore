@@ -1,0 +1,18 @@
+[
+  {"waitFor": "Songs", "timeout": 10000},
+  {"keys": ["p"]},
+  {"keys": ["space", "l"]},
+  {"wait": 1500},
+  {"shot": "small-lyrics"},
+  {"keys": ["space", "L"]},
+  {"wait": 1000},
+  {"shot": "small-full"},
+  {"resize": [90, 30]},
+  {"wait": 500},
+  {"shot": "narrow-full"},
+  {"keys": ["esc"]},
+  {"wait": 300},
+  {"keys": ["space", "q"]},
+  {"wait": 300},
+  {"shot": "narrow-queue-refused"}
+]

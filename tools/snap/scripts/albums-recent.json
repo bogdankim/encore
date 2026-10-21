@@ -1,0 +1,6 @@
+[
+  {"waitFor": "Recently Added", "timeout": 10000},
+  {"shot": "recent"},
+  {"keys": ["q"]},
+  {"expectExit": 3000}
+]
