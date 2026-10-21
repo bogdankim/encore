@@ -12,7 +12,7 @@ A fast terminal client for Apple Music on macOS.
 [![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Homebrew](https://img.shields.io/badge/brew-bogdankim%2Ftap%2Fencore-FBB040?logo=homebrew&logoColor=white)](#homebrew)
 
-<img src="docs/screenshots/home.png" alt="encore showing the Apple Music Home page, with the player bar on top and playlists in the sidebar" width="100%">
+<img src="docs/screenshots/albums.png" alt="encore showing the album grid, with the player bar on top and playlists in the sidebar" width="100%">
 
 </div>
 
@@ -35,7 +35,7 @@ Music.app still plays the audio, handles AirPlay and syncs your library. encore 
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/search.png" alt="The search overlay with results grouped into top results, songs and albums"></td>
-    <td width="50%"><img src="docs/screenshots/leader.png" alt="The album grid with the space leader popup open"></td>
+    <td width="50%"><img src="docs/screenshots/leader.png" alt="Recently Added with the space leader popup open"></td>
   </tr>
   <tr>
     <td align="center">Search everything with <code>space /</code></td>
