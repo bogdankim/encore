@@ -608,8 +608,11 @@ func (a *App) renderLCD(b *barLayout, lines []*line, c *Ctx) {
 	ct := np.Track
 	if ct == nil {
 		mid := lines[len(lines)/2]
+		// centred, and no wider than the text: the right group starts at
+		// rightX, and a line only moves forward
 		msg := notPlaying(c)
-		mid.to(b.lcdX+max(b.lcdW-ansi.StringWidth(msg), 0)/2).fit(toneDim, msg, b.lcdW)
+		mw := min(ansi.StringWidth(msg), b.lcdW)
+		mid.to(b.lcdX+(b.lcdW-mw)/2).fit(toneDim, msg, mw)
 		return
 	}
 	g := &c.Theme.G

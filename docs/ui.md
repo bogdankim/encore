@@ -298,3 +298,5 @@ badges name their target: "Play Album", "Shuffle Artist", "Play Playlist".
 - `go test ./internal/ui/...`: components render to the exact size, never panic
   on empty data, and handle actions/mouse correctly (drive them directly).
 - `make demo` + `tools/snap` scripts in `tools/snap/scripts/` for screenshots.
+  `ENCORE_DEMO_IDLE=1 encore --demo` starts with nothing queued, so the bar
+  reads "Not Playing".

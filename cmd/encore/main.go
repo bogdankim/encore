@@ -77,6 +77,10 @@ func run(demo bool) error {
 			// failing, and none for a station song's first seconds
 			fake.SetArtFaults(bridge.ArtFaults{Delay: 300 * time.Millisecond, StationLate: 3 * time.Second, FailEvery: 5})
 		}
+		if os.Getenv("ENCORE_DEMO_IDLE") == "1" {
+			// nothing queued, as when Music has just started
+			fake.SetIdle()
+		}
 		snap, err := fake.Snapshot(ctx)
 		if err != nil {
 			return err

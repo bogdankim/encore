@@ -61,6 +61,14 @@ type Fake struct {
 	artCalls int
 }
 
+// SetIdle puts the Fake in the state Music.app has when nothing is queued:
+// stopped, no current track. Play starts nothing until something is queued.
+func (f *Fake) SetIdle() {
+	f.mu.Lock()
+	f.queue, f.state, f.qi, f.pos = nil, Stopped, 0, 0
+	f.mu.Unlock()
+}
+
 // ArtFaults makes the Fake's artwork answers behave like Music's at its
 // worst, to reproduce missing covers (see SetArtFaults).
 type ArtFaults struct {
