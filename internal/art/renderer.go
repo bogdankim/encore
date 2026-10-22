@@ -126,10 +126,32 @@ type limit struct {
 // Cache sizes. Decoded images and scaled boxes hold the album grid's tile
 // images plus the player bar and page headers.
 const (
-	imagesMax   = 96
-	boxesMax    = 96
-	payloadsMax = 192 // whole boxes and the pieces overlays cut them into
+	imagesMax = 96
+	// imagesBudget caps the decoded images' pixels: a 600 px hero image is
+	// 1.4 MB, so 96 of them would be 138 MB.
+	imagesBudget = 48 << 20
+	boxesBudget  = 32 << 20
+	boxesMax     = 96
+	// Encoded payloads (the bytes sent to the terminal) are small, about
+	// 11 KB for a grid tile, and drawing from one needs no decoded image.
+	// They are kept for a whole library of tiles within a byte budget, so
+	// scrolling back over covers decodes and encodes nothing. They are
+	// the whole boxes and the pieces overlays cut them into.
+	payloadsMax    = 4096
+	payloadsBudget = 8 << 20
 )
+
+// imageBytes is the memory an image's pixels take (4 bytes each at most).
+func imageBytes(m image.Image) int {
+	b := m.Bounds()
+	return b.Dx() * b.Dy() * 4
+}
+
+func nrgbaBytes(m *image.NRGBA) int { return len(m.Pix) }
+
+func newPayloadLRU() *lru[pieceKey, []byte] {
+	return newCostLRU[pieceKey, []byte](payloadsMax, payloadsBudget, func(b []byte) int { return len(b) })
+}
 
 type rect struct{ x, y, w, h int }
 
@@ -211,11 +233,11 @@ func NewRenderer(o Options) *Renderer {
 		now:         time.Now,
 		cell:        o.Cell,
 		cellKnown:   o.Cell.W > 0 && o.Cell.H > 0,
-		images:      newLRU[string, image.Image](imagesMax, nil),
+		images:      newCostLRU[string, image.Image](imagesMax, imagesBudget, imageBytes),
 		blocks:      newLRU[boxKey, string](256, nil),
-		boxes:       newLRU[boxKey, *image.NRGBA](boxesMax, nil),
+		boxes:       newCostLRU[boxKey, *image.NRGBA](boxesMax, boxesBudget, nrgbaBytes),
 		sixels:      newLRU[boxKey, *sixelImage](boxesMax, nil),
-		payloads:    newLRU[pieceKey, []byte](payloadsMax, nil),
+		payloads:    newPayloadLRU(),
 		shown:       map[piece]bool{},
 		composed:    map[string]CellSize{},
 		encoding:    map[pieceKey]bool{},
@@ -306,9 +328,9 @@ func (r *Renderer) limitLocked(key string) int {
 // resetScaledLocked drops everything scaled for the old cell size or limits
 // and redraws.
 func (r *Renderer) resetScaledLocked() {
-	r.boxes = newLRU[boxKey, *image.NRGBA](boxesMax, nil)
+	r.boxes = newCostLRU[boxKey, *image.NRGBA](boxesMax, boxesBudget, nrgbaBytes)
 	r.sixels = newLRU[boxKey, *sixelImage](boxesMax, nil)
-	r.payloads = newLRU[pieceKey, []byte](payloadsMax, nil)
+	r.payloads = newPayloadLRU()
 	r.invalidateLocked()
 }
 
@@ -432,6 +454,17 @@ func (r *Renderer) invalidateLocked() {
 	r.dirtyAll = true
 	r.shown = map[piece]bool{}
 	r.poke()
+}
+
+// PrepareDecoded is Prepare for art the caller has already decoded, so the
+// bytes are not decoded a second time.
+func (r *Renderer) PrepareDecoded(key string, m image.Image, cols, rows int) error {
+	r.mu.Lock()
+	if _, ok := r.images.get(key); !ok {
+		r.images.put(key, m)
+	}
+	r.mu.Unlock()
+	return r.Prepare(key, nil, cols, rows)
 }
 
 // Prepare decodes img and does the expensive work for showing it at
@@ -570,6 +603,22 @@ func (r *Renderer) Composed(key string, cols, rows int) bool {
 		return true
 	}
 	_, ok := r.payloads.get(pieceKey{boxKey{key, cols, rows}, rect{0, 0, cols, rows}, r.cell})
+	return ok
+}
+
+// Ready reports whether the artwork for key can be drawn at cols×rows without
+// decoding anything. For iTerm2 images (and sixel tiles that go as iTerm2
+// images) that is the encoded payload of the whole box for the current cell
+// size, which outlives the decoded image; for the other protocols it is the
+// decoded image, as Has.
+func (r *Renderer) Ready(key string, cols, rows int) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.proto.Placed() && !r.sixelKey(key) {
+		_, ok := r.payloads.get(pieceKey{boxKey{key, cols, rows}, rect{0, 0, cols, rows}, r.cell})
+		return ok
+	}
+	_, ok := r.images.get(key)
 	return ok
 }
 
@@ -781,12 +830,18 @@ func (r *Renderer) ops(dmg *damage) string {
 			held = held || !hidden
 			continue
 		}
-		m, ok := images[p.key]
-		if !ok {
-			continue
-		}
 		crop := rect{p.vis.x - p.box.x, p.vis.y - p.box.y, p.vis.w, p.vis.h}
 		pk := pieceKey{boxKey{p.key, p.box.w, p.box.h}, crop, cell}
+		m, ok := images[p.key]
+		if !ok {
+			// the decoded image may be gone while its payload is kept
+			if data, have := r.cachedPayload(pk); have {
+				b.WriteString(r.drawPiece(p.key, p.vis, data, pane))
+			} else {
+				late = append(late, p) // a cut piece needs the image; drawn once it is back
+			}
+			continue
+		}
 		if sixel && !r.encodeSoon(pk, m) {
 			late = append(late, p)
 			continue
@@ -1038,6 +1093,13 @@ func (r *Renderer) blockFor(bk boxKey, m image.Image) string {
 	r.blocks.put(bk, s)
 	r.mu.Unlock()
 	return s
+}
+
+// cachedPayload returns the encoded image for pk if it is kept.
+func (r *Renderer) cachedPayload(pk pieceKey) ([]byte, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.payloads.get(pk)
 }
 
 // payload returns the encoded image for a piece, scaling and cropping on a

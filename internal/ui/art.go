@@ -244,15 +244,19 @@ func (s *artStore) block(key, pid string, w, h int, mode ArtMode) (string, bool)
 }
 
 // tileImage reports whether the image for tile key is ready to draw at w×h,
-// and queues its load when it is not.
-func (s *artStore) tileImage(key, pid string, w, h int) bool {
+// and queues its load when it is not. For iTerm2 images that means the
+// encoded payload is kept: the decoded image may be long gone, and the tile
+// still draws, so scrolling back over covers loads nothing. Pass decoded for
+// a tile that is cut (at the grid's edge, beside an overlay): the pieces are
+// cut from the decoded image.
+func (s *artStore) tileImage(key, pid string, w, h int, decoded bool) bool {
 	if s == nil || !s.tileImages || key == "" || pid == "" {
 		return false
 	}
 	ik := tileImageKey(key)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.prepared.get(artSize{ik, w, h}); ok && s.r.Has(ik) {
+	if s.r.Ready(ik, w, h) && (!decoded || s.r.Has(ik)) {
 		return true
 	}
 	s.wantLocked(artReq{key: key, pid: pid, w: w, h: h})
@@ -263,6 +267,9 @@ func (s *artStore) tileImage(key, pid string, w, h int) bool {
 func (s *artStore) heroReady(key string, w, h int) bool {
 	if s == nil || s.r == nil {
 		return false
+	}
+	if strings.HasPrefix(key, TileKeyPrefix) {
+		return s.r.Ready(key, w, h) // tiles are not tracked in prepared
 	}
 	s.mu.Lock()
 	_, ok := s.prepared.get(artSize{key, w, h})
@@ -507,9 +514,6 @@ func (s *artStore) work() {
 			if tile != "" {
 				s.tiles.put(sz, tile)
 			}
-			if s.tileImages {
-				s.prepared.put(artSize{tileImageKey(req.key), req.w, req.h}, true)
-			}
 		}
 		s.mu.Unlock()
 		if err == nil && !none {
@@ -527,7 +531,7 @@ func (s *artStore) load(req artReq) (tile string, none bool, err error) {
 	}
 	ik := tileImageKey(req.key)
 	if !req.hero && s.tileImages && s.r.Has(ik) && s.hasTile(req) {
-		return "", false, s.r.Prepare(ik, nil, req.w, req.h)
+		return "", false, s.r.Prepare(ik, nil, req.w, req.h) // encodes unless the payload is kept
 	}
 	px := tileArtPx
 	switch {
@@ -556,7 +560,7 @@ func (s *artStore) load(req artReq) (tile string, none bool, err error) {
 		return "", false, err
 	}
 	if s.tileImages {
-		if err := s.r.Prepare(ik, data, req.w, req.h); err != nil {
+		if err := s.r.PrepareDecoded(ik, img, req.w, req.h); err != nil {
 			return "", false, err
 		}
 	}
@@ -768,7 +772,7 @@ func (c *Ctx) TileRow(tiles []RowTile, y, w, h, vis int, crisp bool) bool {
 	}
 	ready := true
 	for _, t := range tiles {
-		ready = a.art.tileImage(t.Key, t.PID, w, h) && ready // queue every load
+		ready = a.art.tileImage(t.Key, t.PID, w, h, false) && ready // queue every load
 	}
 	if !ready || !crisp {
 		return false
@@ -839,7 +843,8 @@ func (c *Ctx) CoverArt(x, y, w, h int) {
 // the terminal takes images, it is loaded, crisp is set, and the frame has
 // room for another tile image. It queues the load either way.
 func (a *App) tileArt(key, pid string, p artPlace, crisp bool) bool {
-	if !a.art.tileImage(key, pid, p.box.Dx(), p.box.Dy()) || !crisp || a.art.rowImages {
+	cut := !p.crop.Empty() && p.crop != p.box || a.artShown(p) < 1
+	if !a.art.tileImage(key, pid, p.box.Dx(), p.box.Dy(), cut) || !crisp || a.art.rowImages {
 		return false
 	}
 	n := 0
