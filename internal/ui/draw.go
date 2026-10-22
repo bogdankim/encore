@@ -2,13 +2,75 @@ package ui
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
 // Width is the display width of s, ignoring ANSI sequences.
-func Width(s string) int { return ansi.StringWidth(s) }
+func Width(s string) int {
+	if w, ok := quickWidth(s); ok {
+		return w
+	}
+	return ansi.StringWidth(s)
+}
+
+// quickWidth measures what nearly all of encore's lines are made of: printable
+// ASCII, SGR and other CSI sequences, and glyphs known to take one cell
+// (Latin letters with accents, box drawing, block elements, a few symbols).
+// ansi.StringWidth walks grapheme clusters, which is several times slower and
+// was a third of the time spent on a frame. ok is false for anything else
+// (combining marks, wide or emoji characters, OSC sequences, controls), which
+// Width leaves to ansi.StringWidth.
+func quickWidth(s string) (w int, ok bool) {
+	for i := 0; i < len(s); {
+		c := s[i]
+		switch {
+		case c >= 0x20 && c < 0x7f:
+			w++
+			i++
+		case c == 0x1b:
+			if i+1 >= len(s) || s[i+1] != '[' {
+				return 0, false
+			}
+			i += 2
+			for i < len(s) && s[i] >= 0x20 && s[i] < 0x40 { // parameters, intermediates
+				i++
+			}
+			if i >= len(s) || s[i] < 0x40 || s[i] > 0x7e {
+				return 0, false
+			}
+			i++
+		case c < 0x80:
+			return 0, false
+		default:
+			r, n := utf8.DecodeRuneInString(s[i:])
+			if !oneCell(r) {
+				return 0, false
+			}
+			w++
+			i += n
+		}
+	}
+	return w, true
+}
+
+// oneCell reports whether r is known to be one cell wide and to combine with
+// nothing.
+func oneCell(r rune) bool {
+	switch {
+	case r >= 0xa1 && r <= 0x2ff && r != 0xad: // Latin-1 and Latin Extended, spacing modifiers
+		return true
+	case r >= 0x2010 && r <= 0x2027, r >= 0x2030 && r <= 0x205e: // punctuation
+		return true
+	case r >= 0x2190 && r <= 0x21ff, r >= 0x2500 && r <= 0x25ff: // arrows, box drawing, blocks, shapes
+		return true
+	case r == 0x2605, r == 0x2606, r == 0x2661, r == 0x2665, r == 0x266a, r == 0x266b:
+		return true
+	}
+	return false
+}
 
 // Fit truncates s (styled or not) to w cells with an ellipsis and pads it with
 // spaces to exactly w cells.
@@ -16,10 +78,10 @@ func Fit(s string, w int) string {
 	if w <= 0 {
 		return ""
 	}
-	sw := ansi.StringWidth(s)
+	sw := Width(s)
 	if sw > w {
 		s = ansi.Truncate(s, w, "…")
-		sw = ansi.StringWidth(s)
+		sw = Width(s)
 	}
 	if sw < w {
 		s += strings.Repeat(" ", w-sw)
@@ -32,7 +94,7 @@ func FitRight(s string, w int) string {
 	if w <= 0 {
 		return ""
 	}
-	sw := ansi.StringWidth(s)
+	sw := Width(s)
 	if sw > w {
 		return ansi.Truncate(s, w, "…")
 	}
@@ -41,7 +103,7 @@ func FitRight(s string, w int) string {
 
 // Center places s in the middle of w cells.
 func Center(s string, w int) string {
-	sw := ansi.StringWidth(s)
+	sw := Width(s)
 	if sw >= w {
 		return Fit(s, w)
 	}

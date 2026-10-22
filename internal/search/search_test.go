@@ -425,3 +425,32 @@ func BenchmarkNewIndex(b *testing.B) {
 		NewIndex(l)
 	}
 }
+
+func TestResetFiltersDropsCorpora(t *testing.T) {
+	l := library.Build(libtest.Snapshot(200))
+	FilterTracks(l.Songs, "love")
+	FilterAlbums(l.Albums, "love")
+	trackFilters.mu.Lock()
+	n := len(trackFilters.entries)
+	trackFilters.mu.Unlock()
+	if n == 0 {
+		t.Fatal("filtering kept no corpus; the test proves nothing")
+	}
+	ResetFilters()
+	for name, fc := range map[string]interface{ size() int }{
+		"tracks": trackFilters, "albums": albumFilters, "artists": artistFilters, "playlists": playlistFilters,
+	} {
+		if fc.size() != 0 {
+			t.Errorf("%s: %d corpora left", name, fc.size())
+		}
+	}
+	if got := FilterTracks(l.Songs, "love"); len(got) == 0 {
+		t.Fatal("filtering stopped working after a reset")
+	}
+}
+
+func (fc *filterCache[T]) size() int {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	return len(fc.entries)
+}

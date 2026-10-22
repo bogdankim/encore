@@ -338,6 +338,23 @@ type filterEntry[T comparable] struct {
 
 const filterCacheSize = 4
 
+// ResetFilters drops the corpora FilterTracks and the other Filter functions
+// keep for recent inputs. Call it when the library is swapped: an entry holds
+// pointers into the old library, which keeps all of it alive.
+func ResetFilters() {
+	trackFilters.reset()
+	albumFilters.reset()
+	artistFilters.reset()
+	playlistFilters.reset()
+}
+
+func (fc *filterCache[T]) reset() {
+	fc.mu.Lock()
+	clear(fc.entries)
+	fc.entries = nil
+	fc.mu.Unlock()
+}
+
 func (fc *filterCache[T]) filter(xs []T, query string) []T {
 	q := parseQuery(query)
 	if q == nil || len(xs) == 0 {

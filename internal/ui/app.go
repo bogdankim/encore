@@ -693,6 +693,7 @@ func (a *App) setLibrary(lib *library.Library, idx *search.Index) tea.Cmd {
 		return nil
 	}
 	a.lib, a.idx, a.libLoading = lib, idx, false
+	search.ResetFilters() // its corpora point into the old library
 	for pid, v := range a.fav {
 		if t := lib.Track(pid); t == nil || t.Favorited == v {
 			delete(a.fav, pid)
