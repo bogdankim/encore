@@ -718,8 +718,8 @@ func (p *Process) Snapshot(ctx context.Context) (*Snapshot, error) {
 		return nil, fmt.Errorf("bridge library.snapshot: %w", err)
 	}
 	defer f.Close()
-	snap := new(Snapshot)
-	if err := json.NewDecoder(bufio.NewReaderSize(f, 256<<10)).Decode(snap); err != nil {
+	snap, err := decodeSnapshot(bufio.NewReaderSize(f, 256<<10), res.Tracks, res.Playlists)
+	if err != nil {
 		return nil, fmt.Errorf("bridge library.snapshot: decode: %w", err)
 	}
 	p.log.Printf("snapshot: %d tracks, %d playlists in %d ms", res.Tracks, res.Playlists, res.MS)

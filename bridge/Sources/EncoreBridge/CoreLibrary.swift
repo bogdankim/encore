@@ -149,11 +149,7 @@ enum LibrarySnapshotter {
       return built
     }
 
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.withoutEscapingSlashes]
-    let data = try encoder.encode(snapshot)
-    // Data.write(.atomic) writes a temporary file next to `path` and renames it.
-    try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+    let bytes = try SnapshotWriter.write(snapshot, to: path)
     mark("write")
 
     LibraryIndex.shared.update(containers: containers, albumArt: albumArt, usedMusic: facts != nil)
@@ -165,7 +161,7 @@ enum LibrarySnapshotter {
     phases.append("events \(factsMs)")
     let ms = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
     return Result(tracks: snapshot.tracks.count, playlists: snapshot.playlists.count, ms: ms,
-                  bytes: data.count, usedMusic: facts != nil, phases: phases.joined(separator: ", "))
+                  bytes: bytes, usedMusic: facts != nil, phases: phases.joined(separator: ", "))
   }
 
   /// Name of the reusable queue playlist; never part of a snapshot.

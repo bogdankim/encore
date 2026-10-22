@@ -48,3 +48,56 @@ func TestRefresherDebouncesAndSwaps(t *testing.T) {
 		t.Fatalf("cache not saved: %v", err)
 	}
 }
+
+func TestRefresherSpacesRefreshesByTheLastOne(t *testing.T) {
+	f := bridge.NewFakeWithClock(1, time.Now)
+	defer f.Close()
+	var cur atomic.Pointer[library.Library]
+	cur.Store(library.Build(&bridge.Snapshot{}))
+
+	var n atomic.Int32
+	r := newRefresher(f, "", &cur)
+	r.debounce = 5 * time.Millisecond
+	r.gapFactor = 2
+	r.lastTook, r.lastAt = 100*time.Millisecond, time.Now() // a slow refresh just finished
+	r.send = func(tea.Msg) { n.Add(1) }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go r.run(ctx, false)
+	r.trigger()
+	time.Sleep(120 * time.Millisecond)
+	if n.Load() != 0 {
+		t.Fatal("refreshed inside the gap")
+	}
+	time.Sleep(250 * time.Millisecond)
+	if n.Load() != 1 {
+		t.Fatalf("%d refreshes after the gap, want 1", n.Load())
+	}
+}
+
+// failingClient is a bridge client whose snapshots fail.
+type failingClient struct{ bridge.Client }
+
+func (failingClient) Snapshot(context.Context) (*bridge.Snapshot, error) {
+	return nil, context.DeadlineExceeded
+}
+
+func TestFailedRefreshDoesNotHoldBackTheNext(t *testing.T) {
+	var cur atomic.Pointer[library.Library]
+	r := newRefresher(failingClient{}, "", &cur)
+	r.send = func(tea.Msg) {}
+	r.refresh(context.Background())
+	if wait := r.untilNext(time.Now()); wait > 0 {
+		t.Fatalf("a failed refresh made the next wait %v", wait)
+	}
+}
+
+func TestRefreshGapIsCapped(t *testing.T) {
+	r := newRefresher(nil, "", nil)
+	now := time.Now()
+	r.lastAt, r.lastTook = now, 10*time.Minute
+	if wait := r.untilNext(now); wait != refreshGapMax {
+		t.Fatalf("wait %v, want the cap %v", wait, refreshGapMax)
+	}
+}

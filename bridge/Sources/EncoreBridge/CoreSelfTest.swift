@@ -61,7 +61,7 @@ enum SelfTest {
     var albums: [String] = []
     for t in lib where !t.albumPid.isEmpty && !albums.contains(t.albumPid) && albums.count < 3 { albums.append(t.albumPid) }
     pids += albums
-    let index = ArtIndex(log: server.log)
+    let index = ArtIndex(queue: server.artwork, log: server.log)
     var found = 0
     for pid in pids {
       let t = DispatchTime.now()

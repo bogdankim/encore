@@ -112,10 +112,7 @@ enum MusicSnapshotter {
     mark("playlists")
 
     let snapshot = LibrarySnapshot(generatedAt: Int64(Date().timeIntervalSince1970), tracks: tracks, playlists: out)
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.withoutEscapingSlashes]
-    let data = try encoder.encode(snapshot)
-    try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+    let bytes = try SnapshotWriter.write(snapshot, to: path)
     mark("write")
 
     LibraryIndex.shared.update(containers: containers, albumArt: [:], usedMusic: true)
@@ -126,7 +123,7 @@ enum MusicSnapshotter {
     }
     phases.append("\(extra) playlist-only tracks")
     let ms = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
-    return LibrarySnapshotter.Result(tracks: tracks.count, playlists: out.count, ms: ms, bytes: data.count,
+    return LibrarySnapshotter.Result(tracks: tracks.count, playlists: out.count, ms: ms, bytes: bytes,
                                      usedMusic: true, phases: phases.joined(separator: ", "), source: "music")
   }
 

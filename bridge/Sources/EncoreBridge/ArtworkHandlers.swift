@@ -10,7 +10,7 @@ import Foundation
 /// has no playlist artwork, so it is always an Apple Event.
 enum ArtworkHandlers {
   static func register(_ server: Server, _ music: MusicAE) {
-    let index = ArtIndex(log: server.log)
+    let index = ArtIndex(queue: server.artwork, log: server.log)
     // Load once access is settled (it may take a prompt), so the first art doesn't
     // wait ~0.5 s.
     Permissions.shared.whenLibraryDecided(on: server.artwork) { granted in
