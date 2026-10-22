@@ -20,7 +20,8 @@ const (
 	// repeating.
 	repeatGap = 80 * time.Millisecond
 	// artHoldAfter is how long after the last repeating input the art
-	// loads that finish meanwhile are held to the same cap.
+	// loads that finish meanwhile, and the grid's settle messages, are held to
+	// the same cap.
 	artHoldAfter = 250 * time.Millisecond
 )
 
@@ -63,7 +64,10 @@ func (g *frameGate) hold(msg tea.Msg, now time.Time) tea.Cmd {
 		if g.repeat != g.lastIn {
 			return nil // the first press of a burst shows at once
 		}
-	case artMsg:
+	case artMsg, gridSettledMsg:
+		// A settle message comes 150 ms after a scroll step, one per step, so
+		// a held key sends as many as it has steps. Only the last one,
+		// after the burst, has anything to show.
 		if now.Sub(g.repeat) > artHoldAfter {
 			return nil
 		}

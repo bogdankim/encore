@@ -63,6 +63,9 @@ func TestFrameGate(t *testing.T) {
 	if held, _ := step(artMsg{}, t2.Add(10*time.Millisecond)); !held {
 		t.Fatal("art finishing mid-burst was not held")
 	}
+	if held, _ := step(gridSettledMsg{}, t2.Add(12*time.Millisecond)); !held {
+		t.Fatal("a grid settle message mid-burst was not held")
+	}
 	t3 := t2.Add(time.Second)
 	build(t3.Add(-time.Millisecond))
 	if held, _ := step(artMsg{}, t3); held {
@@ -130,5 +133,38 @@ func TestOnInputSeesInputOnly(t *testing.T) {
 	a.Update(artMsg{})
 	if n != 3 {
 		t.Fatalf("OnInput ran for a tick or an art message")
+	}
+}
+
+// Holding a key in the album grid sends a settle message per step 150 ms
+// later. They must not each build a frame: with presses 10 ms apart the grid
+// builds about 30 frames a second, not one per press and one per settle.
+func TestGridKeyRepeatBuildsFewFrames(t *testing.T) {
+	a := newShellApp(t, 140, 42)
+	a.o.FrameCap = time.Second / 30
+	a.nav.open(a.section(KeyRecent))
+	a.View()
+	built, last := 0, a.gate.rendered
+	start := time.Now()
+	const steps = 60
+	for i := 0; i < steps; i++ {
+		a.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+		a.Update(gridSettledMsg{}) // what the step's tick delivers, here at once
+		a.View()
+		if a.gate.rendered != last {
+			built++
+			last = a.gate.rendered
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	secs := time.Since(start).Seconds()
+	if max := int(secs*30) + 4; built > max {
+		t.Fatalf("%d frames built in %.2f s for %d steps, want at most %d", built, secs, steps, max)
+	}
+	// the burst's last step must show once the flush arrives
+	a.Update(frameFlushMsg{})
+	a.View()
+	if a.gate.held {
+		t.Fatal("still holding a frame after the flush")
 	}
 }
