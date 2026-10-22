@@ -45,6 +45,15 @@ enum AirPlayHandlers {
 
     // Fill the cache now so the picker opens without the 500 ms wait.
     queue.async { watcher.refresh() }
+
+    let repairer = AirPlayRepairer(server: server, music: music, watcher: watcher, queue: queue,
+                                   enabled: !CommandLine.arguments.contains("--no-airplay-reconnect"))
+    watcher.onPublish = { repairer.routeChanged() }
+    // PlayerMonitor's state belongs to the music queue.
+    server.music.async {
+      PlayerMonitor.shared.onChange = { state, track in queue.async { repairer.playerChanged(state: state, track: track) } }
+    }
+    queue.async { repairer.start() }
   }
 }
 
@@ -59,6 +68,8 @@ final class AirPlayWatcher {
   private var watchUntil = DispatchTime.now()
   private var lastWrite: DispatchTime?
   private var timer: DispatchSourceTimer?
+  /// Called after every `airplay` event, on the AirPlay queue.
+  var onPublish: (() -> Void)?
 
   init(server: Server, music: MusicAE, queue: DispatchQueue) {
     self.server = server
@@ -120,6 +131,7 @@ final class AirPlayWatcher {
   private func publish(_ devices: [MusicAE.AirPlayEntry]) {
     last = devices
     server.emit("airplay", ["devices": devices.map(\.json)])
+    onPublish?()
   }
 }
 

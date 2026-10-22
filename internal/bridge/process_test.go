@@ -125,6 +125,8 @@ func testBridgeHandle(method string, params map[string]any, emit func(string, an
 		return map[string]any{"n": serialRuns.Load()}, nil
 	case "test.pid":
 		return map[string]any{"pid": os.Getpid()}, nil
+	case "test.args":
+		return map[string]any{"args": os.Args[1:]}, nil
 	case "test.responsible":
 		return map[string]any{"pid": os.Getpid(), "responsible": responsiblePID(os.Getpid())}, nil
 	case "test.hang":
@@ -905,5 +907,30 @@ func TestChildWaitClosesPipes(t *testing.T) {
 	}
 	if _, err := c.stdout.Read(make([]byte, 1)); !errors.Is(err, os.ErrClosed) {
 		t.Fatalf("stdout read after wait: %v, want os.ErrClosed", err)
+	}
+}
+
+func TestNoAirPlayReconnectFlag(t *testing.T) {
+	for _, off := range []bool{false, true} {
+		p := startTestOpts(t, Options{Args: []string{"-x"}, NoAirPlayReconnect: off})
+		var res struct{ Args []string }
+		if err := p.call(context.Background(), DefaultTimeout, "test.args", nil, &res); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"-x"}
+		if off {
+			want = append(want, "--no-airplay-reconnect")
+		}
+		if !slices.Equal(res.Args, want) {
+			t.Errorf("NoAirPlayReconnect %v: args %q, want %q", off, res.Args, want)
+		}
+	}
+}
+
+func TestDecodeAirPlayRepaired(t *testing.T) {
+	ev, err := decodeEvent("airplay.repaired", json.RawMessage(`{"devices":["Living Room","Kitchen"],"ok":true}`))
+	re, ok := ev.(AirPlayRepairedEvent)
+	if err != nil || !ok || !re.OK || !slices.Equal(re.Devices, []string{"Living Room", "Kitchen"}) {
+		t.Fatalf("decoded %#v, %v", ev, err)
 	}
 }

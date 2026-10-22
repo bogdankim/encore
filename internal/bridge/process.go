@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -53,6 +54,10 @@ type Options struct {
 	LogPath string
 	// EventBuffer is the capacity of the Events channel. Default 64.
 	EventBuffer int
+	// NoAirPlayReconnect starts the bridge with --no-airplay-reconnect: it
+	// still notices when Music falls back to the Mac's speakers with an
+	// AirPlay device selected, and logs it, but leaves the route alone.
+	NoAirPlayReconnect bool
 
 	backoff    func(attempt int) time.Duration // restart delay; tests shorten it
 	afterSpawn func(*conn)                     // test hook between spawn and install
@@ -233,7 +238,11 @@ func (p *Process) spawn() (*conn, error) {
 	if p.logw != nil {
 		stderr = p.logw
 	}
-	ch, err := startChild(p.path, p.opts.Args, p.opts.Env, stderr, !inheritTCC)
+	args := p.opts.Args
+	if p.opts.NoAirPlayReconnect {
+		args = append(slices.Clone(args), "--no-airplay-reconnect")
+	}
+	ch, err := startChild(p.path, args, p.opts.Env, stderr, !inheritTCC)
 	if err != nil {
 		return nil, fmt.Errorf("bridge: start %s: %w", p.path, err)
 	}
@@ -453,6 +462,15 @@ func decodeEvent(name string, data json.RawMessage) (Event, error) {
 			return nil, err
 		}
 		return AirPlayEvent{Devices: d.Devices}, nil
+	case "airplay.repaired":
+		var d struct {
+			Devices []string `json:"devices"`
+			OK      bool     `json:"ok"`
+		}
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return AirPlayRepairedEvent{Devices: d.Devices, OK: d.OK}, nil
 	case "music":
 		var d struct {
 			Running bool `json:"running"`

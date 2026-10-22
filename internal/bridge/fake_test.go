@@ -801,3 +801,42 @@ func TestFakePlayStore(t *testing.T) {
 		t.Fatalf("library play %+v", np.Track)
 	}
 }
+
+func TestFakeDropAirPlayRoute(t *testing.T) {
+	f, _ := newTestFake(t)
+	ctx := context.Background()
+	if err := f.Play(ctx); err != nil {
+		t.Fatal(err)
+	}
+	drain(f)
+	if f.DropAirPlayRoute(true) {
+		t.Fatal("reconnected while this computer is selected")
+	}
+	if err := f.SelectAirPlay(ctx, []int{29274, 29301}); err != nil {
+		t.Fatal(err)
+	}
+	drain(f)
+	if !f.DropAirPlayRoute(false) {
+		t.Fatal("no reconnect on a dropped route")
+	}
+	var got []AirPlayRepairedEvent
+	for _, ev := range drain(f) {
+		if re, ok := ev.(AirPlayRepairedEvent); ok {
+			got = append(got, re)
+		}
+	}
+	if len(got) != 1 || got[0].OK || !slices.Equal(got[0].Devices, []string{"Living Room", "Kitchen"}) {
+		t.Fatalf("repaired events = %+v", got)
+	}
+	f.SetAutoReconnect(false)
+	if f.DropAirPlayRoute(true) {
+		t.Fatal("reconnected with auto-reconnect off")
+	}
+	f.SetAutoReconnect(true)
+	if err := f.Pause(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if f.DropAirPlayRoute(true) {
+		t.Fatal("reconnected while paused")
+	}
+}

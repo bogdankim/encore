@@ -173,6 +173,16 @@ Results are cached in `~/Library/Caches/encore/lyrics/`. Synced lyrics stay fore
 
 Music renumbers AirPlay devices, so a device ID from one listing can point at a different device a minute later. encore tracks devices by their persistent ID and looks the current numeric ID up right before each call. If Music still reports "not found", encore lists the devices again and retries once.
 
+### When the HomePod drops out
+
+After a long idle, or after you lock and unlock the Mac, macOS sometimes leaves Music with the HomePod selected while the sound comes out of the Mac's own speakers. Music still reports the HomePod as selected, so encore's player bar shows it too. The fix by hand is to pick this Mac in Music and then the HomePod again.
+
+encore does that for you. Music's Apple Events read the same in a broken session as in a healthy one, so the helper asks CoreAudio instead. While Music streams to AirPlay only, its process runs no audio output on the Mac. When Music is playing, this Mac isn't one of the outputs, and Music's process runs output on a local device for 3 seconds in a row, encore selects this Mac, waits 0.4 seconds and selects your devices again. Then it checks that the Mac's output stops within 5 seconds. The footer says "Reconnected to Living Room", or "Couldn't reconnect to Living Room" when the Mac kept playing.
+
+encore reconnects at most once a minute. After two failed tries it leaves that route alone until you change the outputs or the track changes. It never touches the route while this Mac is one of the outputs. It checks when Music's output starts or stops, when playback, the track or the outputs change, a few times after the Mac wakes or the screen unlocks, and every 30 seconds while playing.
+
+Every check that looks wrong goes to `~/Library/Logs/encore/bridge.log`, on lines starting with `airplay route:`, with what CoreAudio reported: Music's pid, whether its process runs output, the devices it runs on with their transport type (`bltn` is the built-in speakers), and the default output. If the HomePod drops out and encore doesn't notice, those lines show why. Set `auto_reconnect = false` under `[airplay]` to stop the reconnects. The log lines still appear, with "would reconnect".
+
 ## last.fm
 
 Scrobbling needs your own last.fm API key; last.fm doesn't let an app register one for you. Open the setup with `space ,`, or type `last.fm` in the palette. It has three steps:
@@ -222,6 +232,11 @@ word_lead_ms = 100  # start filling each timed word this much early
 [lastfm]
 enabled = true  # run ":lastfm" in encore to connect an account
 
+[airplay]
+# When Music plays through the Mac's speakers while an AirPlay device stays
+# selected (macOS does this after sleep or a lock), select it again.
+auto_reconnect = true
+
 # Override palette tokens: fg, dim, faint, accent, sel, hover, warn.
 [colors]
 # accent = "#FA586A"
@@ -246,6 +261,7 @@ Notes on the keys:
 - `mouse = false` turns mouse reporting off.
 - `lyrics.lead_ms` highlights each synced lyric line this many milliseconds before its timestamp, in the pane and in full-screen lyrics. The default is 200. It takes -5000 to 5000.
 - `lyrics.word_lead_ms` starts filling each word of word-timed lyrics (Apple's, and LRC with `<mm:ss.xx>` word tags) this many milliseconds before its timestamp, to make up for the time a frame takes to reach the screen. The default is 100. It takes -5000 to 5000.
+- `airplay.auto_reconnect` reconnects AirPlay when Music falls back to the Mac's speakers with an AirPlay device still selected. See [When the HomePod drops out](#when-the-homepod-drops-out).
 
 ### tmux
 

@@ -146,6 +146,15 @@ type PlayerEvent struct{ NowPlaying NowPlaying }
 // AirPlayEvent carries the device list after a change.
 type AirPlayEvent struct{ Devices []AirPlayDevice }
 
+// AirPlayRepairedEvent reports an automatic AirPlay reconnect: Music had
+// fallen back to the Mac's own speakers with Devices still selected, and the
+// bridge selected this computer and then Devices again. OK is false when the
+// Mac's output kept playing afterwards or Music refused the change.
+type AirPlayRepairedEvent struct {
+	Devices []string // names, in Music's order
+	OK      bool
+}
+
 // MusicEvent reports Music.app launching or quitting.
 type MusicEvent struct{ Running bool }
 
@@ -160,12 +169,13 @@ type PermissionsEvent struct{ Automation, Library string }
 // ExitEvent means the bridge process died. The client restarts it; Err says why.
 type ExitEvent struct{ Err error }
 
-func (PlayerEvent) isEvent()      {}
-func (AirPlayEvent) isEvent()     {}
-func (MusicEvent) isEvent()       {}
-func (LibraryEvent) isEvent()     {}
-func (ExitEvent) isEvent()        {}
-func (PermissionsEvent) isEvent() {}
+func (PlayerEvent) isEvent()          {}
+func (AirPlayEvent) isEvent()         {}
+func (AirPlayRepairedEvent) isEvent() {}
+func (MusicEvent) isEvent()           {}
+func (LibraryEvent) isEvent()         {}
+func (ExitEvent) isEvent()            {}
+func (PermissionsEvent) isEvent()     {}
 
 // Error is an error returned by the bridge. Code is an Apple Event error code
 // (negative) or a bridge code (1 bad request, 2 unknown method, 3 internal,

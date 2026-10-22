@@ -224,6 +224,7 @@ index so art never waits behind a snapshot.
 |---|---|---|
 | `player` | `NowPlaying` | on every playerInfo notification (re-read via one `properties of current track` AE), after our own commands, and once per second while playing |
 | `airplay` | `{"devices": [AirPlayDevice]}` | when the selection or volumes change (poll every 5 s while the AirPlay picker is open, requested by `airplay.list`) |
+| `airplay.repaired` | `{"devices": ["Living Room"], "ok": bool}` | after the bridge reconnected a stale AirPlay route (see "AirPlay route repair"). `devices` are the names it selected again; `ok` is false when Music kept playing on the Mac or refused the change |
 | `music` | `{"running": bool}` | Music.app launched or quit (NSWorkspace notifications) |
 | `library` | `{}` | the library changed (ITLibrary reload shows a different item count or modification), checked every 60 s and on `music.running`; also after a permission prompt |
 | `permissions` | `{"automation": …, "library": …}` | the bridge started waiting for the Automation answer (`automation` is `pending`), or the user answered a permission prompt; fields as in `hello` |
@@ -288,6 +289,57 @@ Albums have no id of this kind (`ITLibAlbum`'s `adamID` and `cloudAlbumID` read 
 whose favorited is true`) merged into the ITLibrary data. `inLibrary` likewise
 from `persistent ID of every track of library playlist 1`. The queue playlist
 (named `encore`) is excluded from snapshots.
+
+### AirPlay route repair
+
+After a long idle or a lock and unlock, macOS can leave Music with an AirPlay
+device selected while it plays through the Mac's own output. Measured on macOS
+27 and Music 1.7: Music's `AirPlay devices` read the same in that state as in a
+healthy one (the HomePod `selected` true, `active` false; `active` is false
+even while it really plays), so Apple Events can't tell them apart. CoreAudio
+can. While Music plays to AirPlay only, its process object (found with
+`kAudioHardwarePropertyTranslatePIDToProcessObject`) has
+`kAudioProcessPropertyIsRunningOutput` 0 and no output-scope
+`kAudioProcessPropertyDevices`, because Music streams AirPlay itself. In the
+broken state the sound comes out of the speakers, so the process should run
+output on a local device. That last part is a hypothesis: nobody captured the
+readings in a broken session yet, which is why the bridge logs them.
+
+- `AirPlayRepairer` (`AirPlayRepair.swift`, on the AirPlay queue) reads
+  CoreAudio on CoreAudio listeners (Music's process object:
+  `IsRunningOutput`, output `Devices`; the system object's process list, for
+  Music launching), on a change of player state or track (`PlayerMonitor`),
+  on an `airplay` event, 2, 8 and 20 s after `NSWorkspace` wake and
+  session-active notifications and `com.apple.screenIsUnlocked`, and every
+  30 s while playing. A reading costs no Apple Event unless Music runs output
+  on a device whose transport isn't `airp`; then it reads the player state
+  and the AirPlay list.
+- `StaleRouteDetector` (`StaleRoute.swift`, a value type with unit tests in
+  `bridge/Tests`) decides. Stale means: playing, at least one device
+  selected, no `computer` among them, local output, all held for 3 s. Any
+  reading without local output restarts the 3 s, and so does a new selection
+  or track. It allows one reconnect per 60 s and gives up after 2 failures
+  until the selection or the track changes.
+- The reconnect selects the `computer` device, waits 400 ms, re-reads the
+  list and selects the old devices again by persistent ID, then reads
+  CoreAudio every 500 ms. Two readings in a row without local output within
+  5 s count as success. If a set fails, it puts the old selection back. It
+  emits `airplay` with the new selection and then `airplay.repaired`.
+- Every stale-looking reading, every decision and the readings around a
+  reconnect go to stderr (bridge.log) as `airplay route: …`, with Music's
+  pid and process object, `runningOutput`, each output device's name,
+  transport type, id and `DeviceIsRunningSomewhere`, and the default output.
+  Healthy readings are logged only when they change, plus the first one
+  after a wake.
+- `--no-airplay-reconnect` (config `[airplay] auto_reconnect = false`, passed
+  by the Go client in `Options.NoAirPlayReconnect`) keeps the detection and
+  the log ("would reconnect") but never changes the route.
+- `ENCORE_AUDIO_PROBE=1 swift test --filter probe` in `bridge/` prints one
+  reading the same way, without touching Music. Run it while the route is
+  broken to check the hypothesis by hand.
+- The fake's `DropAirPlayRoute(ok)` emits the same two events, so UI tests
+  cover the footer status ("Reconnected to Living Room", or "Couldn't
+  reconnect to Living Room" as a warning).
 
 ## Playback model (Go, `internal/player`)
 
@@ -714,7 +766,8 @@ re-auth needed). Scrobbles queue on disk and retry with backoff.
 ## Config and files
 
 - Config: `~/.config/encore/config.toml` (theme, accent, icons, keys, sidebar
-  width, art protocol, lyrics provider toggles, last.fm on/off).
+  width, art protocol, lyrics provider toggles, last.fm on/off, AirPlay
+  auto-reconnect).
 - Cache: `~/Library/Caches/encore/` (library.cache, art/, lyrics/, bin/).
 - State: `~/Library/Application Support/encore/` (scrobble queue, lyric offsets,
   last view, UI state).
@@ -733,7 +786,9 @@ re-auth needed). Scrobbles queue on disk and retry with backoff.
 
 ## Testing
 
-- Unit tests per package (`go test ./...`), the bridge has a `--selftest` mode.
+- Unit tests per package (`go test ./...`). The bridge has a `--selftest` mode,
+  and `swift test` in `bridge/` covers its pure parts (the stale AirPlay route
+  detector). `make test` runs both.
 - `encore --demo` with the fake bridge for UI work.
 - `tools/snap`: runs encore in a pty rendered by xterm.js inside headless Chrome,
   sends keys and mouse events from a script, saves PNG screenshots. Used to review

@@ -37,6 +37,7 @@ demo: build
 
 test:
 	go test ./...
+	cd bridge && swift test
 
 install: build
 	mkdir -p $(HOME)/.local/bin

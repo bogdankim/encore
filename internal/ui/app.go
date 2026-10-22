@@ -654,6 +654,8 @@ func (a *App) onBridge(ev bridge.Event) tea.Cmd {
 	switch ev := ev.(type) {
 	case bridge.AirPlayEvent:
 		a.setAirPlay(ev.Devices)
+	case bridge.AirPlayRepairedEvent:
+		return a.setStatus(reconnectedText(ev), !ev.OK)
 	case bridge.MusicEvent:
 		if ev.Running {
 			return tea.Batch(a.fetchState(), a.fetchAirPlay())
@@ -664,6 +666,21 @@ func (a *App) onBridge(ev bridge.Event) tea.Cmd {
 		return a.setStatus("The Music helper stopped; restarting it", true)
 	}
 	return nil
+}
+
+// reconnectedText is the footer line after the bridge reconnected AirPlay
+// because Music had fallen back to the Mac's speakers.
+func reconnectedText(ev bridge.AirPlayRepairedEvent) string {
+	names := "AirPlay"
+	if n := len(ev.Devices); n == 1 {
+		names = ev.Devices[0]
+	} else if n > 1 {
+		names = strings.Join(ev.Devices[:n-1], ", ") + " and " + ev.Devices[n-1]
+	}
+	if ev.OK {
+		return "Reconnected to " + names
+	}
+	return "Couldn’t reconnect to " + names
 }
 
 func (a *App) setAirPlay(devs []bridge.AirPlayDevice) {

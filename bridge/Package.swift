@@ -18,6 +18,13 @@ let package = Package(
         .linkedFramework("iTunesLibrary"), .linkedFramework("AppKit"),
         .unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", infoPlist]),
       ]
-    )
+    ),
+    // `swift test`: unit tests for the pure parts (no Music, no CoreAudio).
+    .testTarget(
+      name: "EncoreBridgeTests",
+      dependencies: ["encore-bridge"],
+      path: "Tests/EncoreBridgeTests",
+      swiftSettings: [.swiftLanguageMode(.v5)]
+    ),
   ]
 )

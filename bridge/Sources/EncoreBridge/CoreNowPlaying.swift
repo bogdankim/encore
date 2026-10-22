@@ -29,6 +29,10 @@ final class PlayerMonitor: @unchecked Sendable {
   private(set) var lastState = "stopped"
   /// The last event sent, without `at`, to drop exact repeats while not playing.
   private var lastEmitted: NSDictionary?
+  /// Called on the music queue when the reported state or the current track
+  /// changes (the AirPlay route check listens).
+  var onChange: ((_ state: String, _ track: String?) -> Void)?
+  private var lastChange: (state: String, track: String?)?
 
   /// Values we just wrote. Music can return the old value for up to ~1 s after a
   /// set, so reads report the written value until Music agrees or it expires.
@@ -213,6 +217,7 @@ final class PlayerMonitor: @unchecked Sendable {
     let key = comparable as NSDictionary
     if playing || key != lastEmitted { server.emit("player", state) }
     lastEmitted = key
+    notifyChange(state["state"] as? String ?? "stopped", (state["track"] as? [String: Any])?["pid"] as? String)
     // Tick on what Music says, not on what we expect: if it ignored a pause, the
     // ticks report it once the expectation runs out.
     setTicking(playing || lastState == "playing")
@@ -306,6 +311,14 @@ final class PlayerMonitor: @unchecked Sendable {
     lastEmitted = nil
     setTicking(false)
     server?.emit("player", Self.stoppedState())
+    notifyChange("stopped", nil)
+  }
+
+  private func notifyChange(_ state: String, _ track: String?) {
+    guard onChange != nil else { return }
+    if let lastChange, lastChange.state == state, lastChange.track == track { return }
+    lastChange = (state, track)
+    onChange?(state, track)
   }
 
   /// While playing, emit once per second, one second after the latest event. Every

@@ -44,6 +44,8 @@ type Fake struct {
 	repeat   RepeatMode
 	devices  []AirPlayDevice
 	lastEmit time.Time
+	// noReconnect is auto-reconnect off (see DropAirPlayRoute).
+	noReconnect bool
 
 	// Catalog songs played by PlayStore live outside the library, under
 	// temporary pids, as in Music.app.
@@ -750,6 +752,48 @@ func (f *Fake) SetAirPlayVolume(ctx context.Context, id int, volume int) error {
 	})
 }
 
+// SetAutoReconnect turns the simulated AirPlay reconnect on or off, as
+// [airplay] auto_reconnect does for the real bridge. It starts on.
+func (f *Fake) SetAutoReconnect(on bool) {
+	f.mu.Lock()
+	f.noReconnect = !on
+	f.mu.Unlock()
+}
+
+// DropAirPlayRoute simulates the macOS bug where Music keeps an AirPlay
+// device selected but plays through the Mac's speakers. As the real bridge
+// does, the Fake then reconnects if it is playing, this computer isn't
+// selected and auto-reconnect is on: it pushes an AirPlayEvent with the same
+// selection and an AirPlayRepairedEvent whose OK is ok. It reports whether it
+// reconnected.
+func (f *Fake) DropAirPlayRoute(ok bool) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.closed || f.noReconnect {
+		return false
+	}
+	f.advance(f.now())
+	if f.state != Playing {
+		return false
+	}
+	var names []string
+	for _, d := range f.devices {
+		if !d.Selected {
+			continue
+		}
+		if d.Kind == "computer" {
+			return false
+		}
+		names = append(names, d.Name)
+	}
+	if len(names) == 0 {
+		return false
+	}
+	f.events.push(AirPlayEvent{Devices: slices.Clone(f.devices)})
+	f.events.push(AirPlayRepairedEvent{Devices: names, OK: ok})
+	return true
+}
+
 func (f *Fake) device(id int) int {
 	return slices.IndexFunc(f.devices, func(d AirPlayDevice) bool { return d.ID == id })
 }
@@ -801,7 +845,7 @@ func (f *Fake) PlaylistArtwork(ctx context.Context, pid string, size int) (Artwo
 	return Artwork{}, f.do(ctx, false, func(time.Time) error { return nil })
 }
 
-// Events delivers PlayerEvent and AirPlayEvent. Closed by Close.
+// Events delivers PlayerEvent, AirPlayEvent and AirPlayRepairedEvent. Closed by Close.
 func (f *Fake) Events() <-chan Event { return f.events.out }
 
 // Close stops the clock and closes Events. Later calls return ErrClosed.

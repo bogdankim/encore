@@ -26,7 +26,7 @@ Music.app still plays the audio, handles AirPlay and syncs your library. encore 
 - **Synced lyrics.** Apple Music's own lyrics, with each word filling in as it is sung, and [LRCLIB](https://lrclib.net) for everything else. Click a line to jump to it.
 - **Home.** Apple Music's Home page with your stations, mixes, live radio and new releases.
 - **Apple Music catalog.** Search the whole catalog and stream songs, albums and artists you don't have in your library.
-- **AirPlay.** Pick one or several output devices, each with its own volume.
+- **AirPlay.** Pick one or several output devices, each with its own volume. When macOS quietly drops the HomePod after sleep, encore reconnects it.
 - **last.fm scrobbling.** Plays are written to disk first, so nothing is lost offline.
 - **Album art.** iTerm2 images in WezTerm and iTerm2, kitty graphics in kitty and Ghostty, sixel if you ask for it, also inside tmux. Half blocks in every other terminal.
 - **Open in Music.app.** `M` opens the selected Apple Music song, album or playlist in Music, to add it to your library or see more.
@@ -169,7 +169,7 @@ Issues and pull requests are welcome. A bug report helps most when it includes y
 
 ```sh
 make build   # Swift helper + Go binary in bin/encore
-make test    # go test ./...
+make test    # go test ./... and the helper's swift test
 make demo    # build, then run against the demo library
 make run     # build, then run against Music
 make dist VERSION=0.1.0   # release tarball in dist/, prints its sha256

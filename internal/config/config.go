@@ -26,6 +26,7 @@ type Config struct {
 	Mouse        bool              `toml:"mouse"`
 	Lyrics       LyricsConfig      `toml:"lyrics"`
 	LastFM       LastFMConfig      `toml:"lastfm"`
+	AirPlay      AirPlayConfig     `toml:"airplay"`
 	Keys         Keys              `toml:"keys"`
 	Colors       map[string]string `toml:"colors"` // token -> "#RRGGBB" overrides
 }
@@ -42,6 +43,12 @@ type LyricsConfig struct {
 
 type LastFMConfig struct {
 	Enabled bool `toml:"enabled"`
+}
+
+type AirPlayConfig struct {
+	// AutoReconnect selects this computer and then the AirPlay devices again
+	// when Music plays through the Mac's speakers while they stay selected.
+	AutoReconnect bool `toml:"auto_reconnect"`
 }
 
 // Keys is the [keys] table: `leader = "space"` plus action = ["seq", ...].
@@ -77,6 +84,7 @@ func Default() Config {
 		Mouse:        true,
 		Lyrics:       LyricsConfig{Enabled: true, Apple: true, LRCLIB: true, LeadMS: 200, WordLeadMS: 100},
 		LastFM:       LastFMConfig{Enabled: true},
+		AirPlay:      AirPlayConfig{AutoReconnect: true},
 		Keys:         Keys{Leader: "space", Bindings: map[string][]string{}},
 		Colors:       map[string]string{},
 	}
@@ -276,6 +284,11 @@ word_lead_ms = 100  # start filling each timed word this much early
 
 [lastfm]
 enabled = true  # run ":lastfm" in encore to connect an account
+
+[airplay]
+# When Music plays through the Mac's speakers while an AirPlay device stays
+# selected (macOS does this after sleep or a lock), select it again.
+auto_reconnect = true
 
 # Override palette tokens: fg, dim, faint, accent, sel, hover, warn.
 [colors]

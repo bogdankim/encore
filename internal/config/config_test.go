@@ -187,3 +187,22 @@ func TestParseStart(t *testing.T) {
 		t.Fatalf("start = queue: %q %v %v", c.Start, warns, err)
 	}
 }
+
+func TestAirPlayAutoReconnect(t *testing.T) {
+	if !Default().AirPlay.AutoReconnect {
+		t.Error("auto_reconnect should default to true")
+	}
+	c, warns, err := Parse("[airplay]\nauto_reconnect = false\n")
+	if err != nil || len(warns) != 0 || c.AirPlay.AutoReconnect {
+		t.Errorf("auto_reconnect = false: %+v %v %v", c.AirPlay, warns, err)
+	}
+	c, warns, err = Parse("[airplay]\nreconnect = false\n")
+	if err != nil || !c.AirPlay.AutoReconnect || len(warns) != 1 || !strings.Contains(warns[0], `unknown key "airplay.reconnect"`) {
+		t.Errorf("misspelt key: %+v %v %v", c.AirPlay, warns, err)
+	}
+	// A wrong type is a TOML error, as for every boolean: the file falls back to Default().
+	c, _, err = Parse("[airplay]\nauto_reconnect = \"no\"\n")
+	if err == nil || !c.AirPlay.AutoReconnect {
+		t.Errorf("auto_reconnect = \"no\": %+v %v", c.AirPlay, err)
+	}
+}

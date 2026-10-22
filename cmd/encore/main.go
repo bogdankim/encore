@@ -72,6 +72,7 @@ func run(demo bool) error {
 	)
 	if demo {
 		fake := bridge.NewFake(1)
+		fake.SetAutoReconnect(cfg.AirPlay.AutoReconnect)
 		if os.Getenv("ENCORE_DEMO_ART_FAULTS") == "1" {
 			// artwork as Music gives it at its worst: slow, sometimes
 			// failing, and none for a station song's first seconds
@@ -100,7 +101,7 @@ func run(demo bool) error {
 	} else {
 		svc.Home = home.New(musiccache.DefaultDir(), home.DefaultStoreDir())
 		homePage = preloadHome(ctx, svc.Home)
-		proc, err := bridge.Start(ctx, bridge.Options{CacheDir: config.CacheDir()})
+		proc, err := bridge.Start(ctx, bridge.Options{CacheDir: config.CacheDir(), NoAirPlayReconnect: !cfg.AirPlay.AutoReconnect})
 		if err != nil {
 			return err
 		}
@@ -236,7 +237,7 @@ func forwardEvents(client bridge.Client, pl *player.Player, sc *lastfm.Scrobbler
 		switch ev.(type) {
 		case bridge.LibraryEvent:
 			ref.trigger()
-		case bridge.AirPlayEvent, bridge.MusicEvent, bridge.ExitEvent, bridge.PermissionsEvent:
+		case bridge.AirPlayEvent, bridge.AirPlayRepairedEvent, bridge.MusicEvent, bridge.ExitEvent, bridge.PermissionsEvent:
 			send(ui.BridgeMsg{Event: ev})
 		}
 	}
