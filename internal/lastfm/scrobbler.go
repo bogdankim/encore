@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bogdankim/encore/internal/bridge"
@@ -95,6 +96,8 @@ type Scrobbler struct {
 	singles    int // after a request-level error, send this many plays one by one
 
 	kick    chan struct{}
+	wake    chan struct{} // the tick loop: enabled or credentials changed
+	ticks   atomic.Int64  // ticks that fired (tests)
 	persist chan struct{}
 	updates chan Status
 	ctx     context.Context
@@ -119,6 +122,7 @@ func NewScrobbler(creds Credentials, queuePath string, clock Clock, opts ...Opti
 		state:     StateOK,
 		queued:    map[string]bool{},
 		kick:      make(chan struct{}, 1),
+		wake:      make(chan struct{}, 1),
 		persist:   make(chan struct{}, 1),
 		updates:   make(chan Status, 1),
 		ctx:       ctx,
@@ -182,6 +186,7 @@ func (s *Scrobbler) SetCredentials(c Credentials) {
 	s.setCredsLocked(c)
 	s.mu.Unlock()
 	s.signal(s.kick)
+	s.signal(s.wake)
 	s.emit()
 }
 
@@ -197,6 +202,7 @@ func (s *Scrobbler) InitCredentials(c Credentials) {
 	s.setCredsLocked(c)
 	s.mu.Unlock()
 	s.signal(s.kick)
+	s.signal(s.wake)
 	s.emit()
 }
 
@@ -217,6 +223,7 @@ func (s *Scrobbler) SetEnabled(on bool) {
 	}
 	s.mu.Unlock()
 	s.signal(s.kick)
+	s.signal(s.wake)
 	s.emit()
 }
 
@@ -243,14 +250,33 @@ func (s *Scrobbler) Observe(np bridge.NowPlaying, meta TrackMeta) {
 
 func (s *Scrobbler) tickLoop() {
 	defer s.wg.Done()
-	t := time.NewTicker(s.tick)
-	defer t.Stop()
+	timer := time.NewTimer(time.Hour)
+	timer.Stop()
+	defer timer.Stop()
 	for {
+		// While tracking is off or last.fm isn't set up there is nothing to
+		// accrue: wait to be woken instead of waking every second.
+		s.mu.Lock()
+		active := s.enabled && s.creds.Ready()
+		s.mu.Unlock()
+		if !active {
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-s.wake:
+			}
+			continue
+		}
+		timer.Reset(s.tick)
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-t.C:
+		case <-s.wake:
+			timer.Stop()
+			continue
+		case <-timer.C:
 		}
+		s.ticks.Add(1)
 		s.mu.Lock()
 		changed := false
 		if s.last != nil && s.enabled && s.creds.Ready() {

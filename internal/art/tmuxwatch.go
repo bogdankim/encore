@@ -230,13 +230,18 @@ func QueryPane(run TmuxRunner, pane string) (PaneState, bool) {
 
 // pollEvery is how often WatchTmux asks tmux whether the pane is shown, for
 // changes no hook reports (a pane moved to another session, a second
-// client).
-const pollEvery = 2 * time.Second
+// client). Each poll starts a tmux process. With the hooks installed they
+// report the usual changes and the poll is only a backstop, so it is slower
+// (pollHooked); without them it is all there is.
+const (
+	pollEvery  = 2 * time.Second
+	pollHooked = 5 * time.Second
+)
 
 // WatchTmux keeps r's passthrough images (Renderer.Fragile) in step with
 // tmux for pane ($TMUX_PANE): it installs hooks that send this process
 // SIGUSR1 whenever tmux redraws the pane on its own, and on each signal and
-// every pollEvery asks tmux whether the pane is shown (Renderer.SetPane).
+// periodically (pollEvery) asks tmux whether the pane is shown (Renderer.SetPane).
 // After a signal r draws its passthrough images again (Renderer.TmuxRedrawn).
 // Nothing is drawn through passthrough while the pane is hidden, so images
 // never land on another window. stop removes exactly the hooks it added.
@@ -264,7 +269,11 @@ func WatchTmux(r *Renderer, run TmuxRunner, pane string) (stop func()) {
 	finished := make(chan struct{})
 	go func() {
 		defer close(finished)
-		tick := time.NewTicker(pollEvery)
+		every := pollEvery
+		if len(hooks) > 0 {
+			every = pollHooked
+		}
+		tick := time.NewTicker(every)
 		defer tick.Stop()
 		for {
 			select {

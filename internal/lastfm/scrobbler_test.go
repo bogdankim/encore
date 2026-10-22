@@ -485,3 +485,41 @@ func TestScrobblerInitCredentials(t *testing.T) {
 		t.Fatalf("late background load overrode SetCredentials: %+v", st)
 	}
 }
+
+// With tracking off or last.fm not set up the tick loop sleeps until woken,
+// instead of waking every second to find nothing to do.
+func TestTickLoopSleepsWhileOffOrUnconfigured(t *testing.T) {
+	clk := newFakeClock()
+	f := newFakeAPI(t)
+	q := filepath.Join(t.TempDir(), "scrobbles.jsonl")
+
+	s := NewScrobbler(Credentials{}, q, clk, WithAPIRoot(f.root()), WithTick(5*time.Millisecond))
+	t.Cleanup(func() { s.Close() })
+	time.Sleep(60 * time.Millisecond)
+	if n := s.ticks.Load(); n != 0 {
+		t.Fatalf("%d ticks without credentials", n)
+	}
+	s.SetCredentials(testCreds)
+	waitTicks(t, s, 3)
+
+	s.SetEnabled(false)
+	time.Sleep(20 * time.Millisecond) // a tick already in flight may land
+	n := s.ticks.Load()
+	time.Sleep(60 * time.Millisecond)
+	if got := s.ticks.Load(); got != n {
+		t.Fatalf("%d ticks while disabled", got-n)
+	}
+	s.SetEnabled(true)
+	waitTicks(t, s, n+3)
+}
+
+func waitTicks(t *testing.T, s *Scrobbler, n int64) {
+	t.Helper()
+	for range 200 {
+		if s.ticks.Load() >= n {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("ticks stuck at %d, want %d", s.ticks.Load(), n)
+}

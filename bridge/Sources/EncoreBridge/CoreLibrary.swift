@@ -382,11 +382,17 @@ final class LibraryWatcher: @unchecked Sendable {
     if changed || force { server.emit("library", [String: Any]()) }
   }
 
-  static func signature() -> String? {
+  /// `musicRunning` matters only for a library stored elsewhere, which has no
+  /// cheap signal: reading all of it costs about half a second of CPU and a few
+  /// MB every time, and Music is the only thing that writes it, so it is left
+  /// alone (nil, no information) while Music isn't running. The launch check
+  /// reads it once Music is up.
+  static func signature(musicRunning: Bool = MusicAE.isAppRunning) -> String? {
     if let attrs = try? FileManager.default.attributesOfItem(atPath: database.path),
        let modified = attrs[.modificationDate] as? Date, let size = attrs[.size] as? NSNumber {
       return "file:\(modified.timeIntervalSince1970):\(size)"
     }
+    guard musicRunning else { return nil }
     return autoreleasepool {
       guard let lib = try? ITLibrary(apiVersion: "1.0") else { return nil }
       let items = lib.allMediaItems
