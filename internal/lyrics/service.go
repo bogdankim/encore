@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bogdankim/encore/internal/cachegc"
 	"github.com/bogdankim/encore/internal/config"
 )
 
@@ -139,6 +140,11 @@ func NewService(opts Options) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 	idle := make(chan struct{})
 	close(idle)
+	if opts.CacheDir != "" {
+		// one file per track ever played: drop what nobody has asked for in
+		// four months, and cap the rest
+		go cachegc.Prune(opts.CacheDir, 120*24*time.Hour, 64<<20)
+	}
 	return &Service{
 		opts:      opts,
 		providers: ps,
@@ -526,6 +532,7 @@ func (s *Service) load(key string) (entry, bool) {
 	if err != nil {
 		return entry{}, false
 	}
+	cachegc.Touch(s.path(key))
 	var e entry
 	if json.Unmarshal(data, &e) != nil || e.V != cacheVersion {
 		return entry{}, false

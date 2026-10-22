@@ -934,3 +934,35 @@ func TestDecodeAirPlayRepaired(t *testing.T) {
 		t.Fatalf("decoded %#v, %v", ev, err)
 	}
 }
+
+func TestProcessTrimsCachesAtStart(t *testing.T) {
+	dir := t.TempDir()
+	art := filepath.Join(dir, "art")
+	if err := os.MkdirAll(art, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-100 * 24 * time.Hour)
+	stale := time.Now().Add(-snapshotLeftoverAge - time.Minute)
+	for name, mod := range map[string]time.Time{
+		"snapshot-1.json":     stale, // a crashed run's
+		"snapshot-2.json.tmp": stale,
+		"snapshot-3.json":     time.Now(), // maybe another encore's, running now
+		"art/old.jpg":         old,
+		"art/new.jpg":         time.Now(),
+	} {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		os.Chtimes(p, mod, mod)
+	}
+	(&Process{opts: Options{CacheDir: dir}}).trimCaches()
+	for name, want := range map[string]bool{
+		"snapshot-1.json": false, "snapshot-2.json.tmp": false, "snapshot-3.json": true,
+		"art/old.jpg": false, "art/new.jpg": true,
+	} {
+		if _, err := os.Stat(filepath.Join(dir, name)); (err == nil) != want {
+			t.Errorf("%s: exists %v, want %v", name, err == nil, want)
+		}
+	}
+}

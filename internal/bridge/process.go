@@ -17,6 +17,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bogdankim/encore/internal/cachegc"
 )
 
 // Timeouts for calls whose ctx has no deadline, besides DefaultTimeout.
@@ -224,6 +226,7 @@ func Start(ctx context.Context, opts Options) (*Process, error) {
 	p.install(c)
 	p.sup.Add(1)
 	go p.supervise(c)
+	go p.trimCaches()
 	return p, nil
 }
 
@@ -821,6 +824,28 @@ func (p *Process) SetAirPlayVolume(ctx context.Context, id int, volume int) erro
 	return p.call(ctx, DefaultTimeout, "airplay.volume", map[string]any{"id": id, "volume": min(max(volume, 0), 100)}, nil)
 }
 
+// The art folder (this client's covers, Apple Music covers, playlist
+// mosaics) is trimmed at start: files unused for artCacheMaxAge go, then the
+// least recently used until it is under artCacheMaxBytes.
+const (
+	artCacheMaxAge   = 90 * 24 * time.Hour
+	artCacheMaxBytes = 256 << 20
+)
+
+// snapshotLeftoverAge is how old a snapshot temp file in the cache folder
+// must be before start-up deletes it. A snapshot takes at most
+// SnapshotTimeout, and another encore may be taking one right now.
+const snapshotLeftoverAge = 10 * time.Minute
+
+// trimCaches runs once at start, in the background: it deletes what a crash
+// left behind (snapshot temp files, which the bridge's SnapshotWriter also
+// leaves as .tmp) and trims the art folder.
+func (p *Process) trimCaches() {
+	dir := p.opts.CacheDir
+	cachegc.RemoveGlob(filepath.Join(dir, "snapshot-*.json*"), snapshotLeftoverAge)
+	cachegc.Prune(filepath.Join(dir, "art"), artCacheMaxAge, artCacheMaxBytes)
+}
+
 // NoArtworkTTL is how long Artwork and PlaylistArtwork remember that an item
 // has no artwork, unless a LibraryEvent comes first. A track that has just
 // started can have none until Music has fetched it, so the answer is not
@@ -866,6 +891,7 @@ func (p *Process) artworkFile(ctx context.Context, method, pid, name string, siz
 	path := filepath.Join(dir, key+".png")
 	stale, haveStale := cachedArtwork(path)
 	if haveStale && (ttl <= 0 || fileAge(path) < ttl) {
+		cachegc.Touch(path) // keep what is read; see artCacheMaxBytes
 		return stale, nil
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
