@@ -187,6 +187,7 @@ func run(demo bool) error {
 		ArtCacheDir:    artDir,
 		HomePage:       homePage(),
 		Start:          cfg.Start,
+		FrameCap:       time.Second / 30, // while a key or the wheel repeats
 	})
 	prog := tea.NewProgram(app, tea.WithOutput(out))
 	ref.send = prog.Send

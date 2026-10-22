@@ -75,3 +75,54 @@ func BenchmarkWidth(b *testing.B) {
 		}
 	})
 }
+
+// refBox is what Box did before it avoided copying: split, fit each line,
+// join.
+func refBox(s string, w, h int) string {
+	if h <= 0 || w <= 0 {
+		return ""
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) > h {
+		lines = lines[:h]
+	}
+	var b strings.Builder
+	for i := 0; i < h; i++ {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		if i < len(lines) {
+			b.WriteString(Fit(lines[i], w))
+		} else {
+			b.WriteString(strings.Repeat(" ", w))
+		}
+	}
+	return b.String()
+}
+
+func TestBoxAndLinesMatchTheReference(t *testing.T) {
+	pool := []string{"a", "bc", " ", "é", "日", "\x1b[1m", "\x1b[0m", "▀", "…", "\n", "\n", "xyz"}
+	r := rand.New(rand.NewPCG(3, 4))
+	for range 5000 {
+		var b strings.Builder
+		for range r.IntN(40) {
+			b.WriteString(pool[r.IntN(len(pool))])
+		}
+		s := b.String()
+		w, h := 1+r.IntN(30), 1+r.IntN(6)
+		if got, want := Box(s, w, h), refBox(s, w, h); got != want {
+			t.Fatalf("Box(%q, %d, %d) = %q, want %q", s, w, h, got, want)
+		}
+		if got, want := Lines(strings.Split(s, "\n"), w, h), refBox(s, w, h); got != want {
+			t.Fatalf("Lines(%q, %d, %d) = %q, want %q", s, w, h, got, want)
+		}
+		// a line list in which a line holds a newline takes the slow path
+		if got, want := Lines([]string{s, "tail"}, w, h), refBox(s+"\ntail", w, h); got != want {
+			t.Fatalf("Lines with embedded newlines (%q, %d, %d) = %q, want %q", s, w, h, got, want)
+		}
+	}
+	exact := strings.Repeat(strings.Repeat("ab", 5)+"\n", 3) + strings.Repeat("ab", 5)
+	if Box(exact, 10, 4) != exact {
+		t.Fatal("an exact box changed")
+	}
+}

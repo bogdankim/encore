@@ -117,11 +117,20 @@ func Box(s string, w, h int) string {
 	if h <= 0 || w <= 0 {
 		return ""
 	}
-	lines := strings.Split(s, "\n")
+	if exactBox(s, w, h) {
+		return s
+	}
+	return boxLines(strings.Split(s, "\n"), w, h, len(s))
+}
+
+// boxLines is Box for lines already split. size is a guess at the result's
+// length, so the builder is allocated once.
+func boxLines(lines []string, w, h, size int) string {
 	if len(lines) > h {
 		lines = lines[:h]
 	}
 	var b strings.Builder
+	b.Grow(size + h*w/4)
 	for i := 0; i < h; i++ {
 		if i > 0 {
 			b.WriteByte('\n')
@@ -129,14 +138,50 @@ func Box(s string, w, h int) string {
 		if i < len(lines) {
 			b.WriteString(Fit(lines[i], w))
 		} else {
-			b.WriteString(strings.Repeat(" ", w))
+			writeSpaces(&b, w)
 		}
 	}
 	return b.String()
 }
 
+func writeSpaces(b *strings.Builder, n int) {
+	const spaces = "                                                                "
+	for ; n > len(spaces); n -= len(spaces) {
+		b.WriteString(spaces)
+	}
+	b.WriteString(spaces[:n])
+}
+
+// exactBox reports whether s is already h lines of w cells each, in which
+// case Box has nothing to do. A frame passes through Box several times on its
+// way up (the grid, the middle, the frame), and each pass used to copy it.
+func exactBox(s string, w, h int) bool {
+	for n := 0; ; n++ {
+		line, rest, more := strings.Cut(s, "\n")
+		if n >= h || Width(line) != w {
+			return false
+		}
+		if !more {
+			return n == h-1
+		}
+		s = rest
+	}
+}
+
 // Lines joins exactly-sized lines into a w×h block (see Box).
-func Lines(lines []string, w, h int) string { return Box(strings.Join(lines, "\n"), w, h) }
+func Lines(lines []string, w, h int) string {
+	if h <= 0 || w <= 0 {
+		return ""
+	}
+	size := 0
+	for _, l := range lines {
+		if strings.IndexByte(l, '\n') >= 0 {
+			return Box(strings.Join(lines, "\n"), w, h) // a line that is several
+		}
+		size += len(l) + 1
+	}
+	return boxLines(lines, w, h, size)
+}
 
 // Blank is an empty w×h block.
 func Blank(w, h int) string { return Box("", w, h) }

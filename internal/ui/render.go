@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -10,6 +11,15 @@ import (
 
 // View renders the frame.
 func (a *App) View() tea.View {
+	if v, ok := a.gate.take(); ok {
+		return v
+	}
+	v := a.buildView()
+	a.gate.built(v, time.Now())
+	return v
+}
+
+func (a *App) buildView() tea.View {
 	s := a.render()
 	a.commitArt(s)
 	v := tea.NewView(s)

@@ -57,6 +57,9 @@ type Options struct {
 	ArtCacheDir string
 	// HomePage is Apple Music's Home page read before start, or nil.
 	HomePage *home.Page
+	// FrameCap is the shortest time between two frames while a key or the
+	// wheel repeats (see frameGate); 0 builds a frame for every message.
+	FrameCap time.Duration
 	// Start is the section encore opens on (KeyRecent and the like); ""
 	// is Recently Added. Home without shelves falls back to Recently Added.
 	Start string
@@ -118,6 +121,7 @@ const (
 
 // App is the root Bubble Tea model.
 type App struct {
+	gate   frameGate
 	o      Options
 	client bridge.Client
 	svc    Services
@@ -346,7 +350,13 @@ func buildIndex(lib *library.Library) tea.Cmd {
 // Update routes messages; see docs/ui.md, "Root model".
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	view := a.viewKey()
+	a.gate.capEvery = a.o.FrameCap
+	a.gate.input(msg, time.Now())
+	if _, ok := msg.(frameFlushMsg); ok {
+		a.gate.flushed()
+	}
 	m, cmd := a.update(msg)
+	cmd = tea.Batch(cmd, a.gate.hold(msg, time.Now()))
 	if a.viewKey() != view {
 		// a hover hint names a control of the view that was just replaced
 		a.hint, a.backHover = "", false
@@ -384,6 +394,8 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(a.artResize(msg.Width, msg.Height), a.toOverlays(msg))
 	case artMsg:
 		return a, a.art.wait()
+	case frameFlushMsg:
+		return a, nil // ends a held frame; Update has done that already
 	case lastfmMsg:
 		a.bar.lastfmIssue = lastfmIssue(msg.st)
 		return a, tea.Batch(a.waitLastfm(), a.toOverlays(msg))
