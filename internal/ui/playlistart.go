@@ -8,7 +8,7 @@ import (
 	"hash/fnv"
 	"image"
 	"image/draw"
-	"image/png"
+	"image/jpeg"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -155,7 +155,7 @@ func (s *artStore) loadPlaylist(key string, px int) (data []byte, none bool, err
 	if len(spec.sources) >= mosaicCovers {
 		imgs, err := s.coverImages(spec.sources, (px+1)/2)
 		if len(imgs) == mosaicCovers {
-			data, err := encodePNG(mosaic(imgs, px))
+			data, err := encodeJPEG(mosaic(imgs, px))
 			if err != nil {
 				return nil, false, err
 			}
@@ -233,23 +233,23 @@ func (s *artStore) playlistCover(pid string, px int) ([]byte, bool) {
 }
 
 // mosaicPath is where the mosaic of key at px is kept on disk,
-// plmosaic-<pid>-<hash>-<px>.png in the art cache, or "" with no disk cache.
+// plmosaic-<pid>-<hash>-<px>.jpg in the art cache, or "" with no disk cache.
 func (s *artStore) mosaicPath(key string, px int) string {
 	if s.urls.dir == "" {
 		return ""
 	}
 	name := strings.ReplaceAll(strings.TrimPrefix(key, playlistArtPrefix), ":", "-")
-	return filepath.Join(s.urls.dir, "plmosaic-"+name+"-"+strconv.Itoa(px)+".png")
+	return filepath.Join(s.urls.dir, "plmosaic-"+name+"-"+strconv.Itoa(px)+".jpg")
 }
 
 // writeMosaic saves a mosaic and drops the playlist's older ones at the same
 // size, made from albums it no longer starts with.
 func writeMosaic(path string, data []byte) {
 	base := filepath.Base(path)
-	// plmosaic-<pid>-<hash>-<px>.png
-	parts := strings.Split(strings.TrimSuffix(base, ".png"), "-")
+	// plmosaic-<pid>-<hash>-<px>.jpg
+	parts := strings.Split(strings.TrimSuffix(base, ".jpg"), "-")
 	if len(parts) == 4 {
-		old, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "plmosaic-"+parts[1]+"-*-"+parts[3]+".png"))
+		old, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "plmosaic-"+parts[1]+"-*-"+parts[3]+".jpg"))
 		for _, f := range old {
 			if f != path {
 				os.Remove(f)
@@ -274,8 +274,12 @@ func mosaic(imgs []image.Image, px int) *image.NRGBA {
 	return out
 }
 
-func encodePNG(img image.Image) ([]byte, error) {
+// coverJPEGQuality is the quality of the JPEGs encore writes for covers,
+// the same as the bridge's.
+const coverJPEGQuality = 90
+
+func encodeJPEG(img image.Image) ([]byte, error) {
 	var buf bytes.Buffer
-	err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&buf, img)
+	err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: coverJPEGQuality})
 	return buf.Bytes(), err
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// `artwork.get`: square PNG of a track's or album's artwork, written to `path`.
+/// `artwork.get`: square JPEG of a track's or album's artwork, written to `path`.
 /// Image bytes come from ITLibrary (artwork queue, with its own ITLibrary loaded at
 /// launch) and fall back to an Apple Event (music queue) whenever ITLibrary can't
 /// help: no Media & Apple Music access, a failed load, or an item it doesn't know,
@@ -27,7 +27,7 @@ enum ArtworkHandlers {
       let started = DispatchTime.now()
       let (data, source) = try imageData(pid, index, server, music)
       guard let data else { return ["path": ""] }
-      let (w, h) = try ArtImage.writeSquarePNG(data, size: size, to: URL(fileURLWithPath: path))
+      let (w, h) = try ArtImage.writeSquareJPEG(data, size: size, to: URL(fileURLWithPath: path))
       server.log(String(format: "artwork %@ (%@) %dpx in %.1f ms", pid, source, w, PlaybackHandlers.elapsedMs(since: started)))
       return ["path": path, "w": w, "h": h]
     }
@@ -43,7 +43,7 @@ enum ArtworkHandlers {
       guard let data = try server.music.sync(execute: { try music.playlistArtworkData(persistentID: pid) }) else {
         return ["path": ""]
       }
-      let (w, h) = try ArtImage.writeSquarePNG(data, size: size, to: URL(fileURLWithPath: path))
+      let (w, h) = try ArtImage.writeSquareJPEG(data, size: size, to: URL(fileURLWithPath: path))
       server.log(String(format: "playlist artwork %@ %dpx in %.1f ms", pid, w, PlaybackHandlers.elapsedMs(since: started)))
       return ["path": path, "w": w, "h": h]
     }

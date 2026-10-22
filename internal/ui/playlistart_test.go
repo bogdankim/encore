@@ -275,7 +275,7 @@ func TestPlaylistArtFallbackOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 		quadrants(t, m, red, green, blue, white)
-		files, _ := filepath.Glob(filepath.Join(s.urls.dir, "plmosaic-P-*-64.png"))
+		files, _ := filepath.Glob(filepath.Join(s.urls.dir, "plmosaic-P-*-64.jpg"))
 		if len(files) != 1 {
 			t.Fatalf("mosaic files %v", files)
 		}
@@ -287,7 +287,7 @@ func TestPlaylistArtFallbackOrder(t *testing.T) {
 		if _, _, err := loadPl(t, s, plOf("P", "D", "C", "B", "A"), 64); err != nil {
 			t.Fatal(err)
 		}
-		files2, _ := filepath.Glob(filepath.Join(s.urls.dir, "plmosaic-P-*-64.png"))
+		files2, _ := filepath.Glob(filepath.Join(s.urls.dir, "plmosaic-P-*-64.jpg"))
 		if len(files2) != 1 || files2[0] == files[0] {
 			t.Fatalf("mosaic files after a change %v (before %v)", files2, files)
 		}

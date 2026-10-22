@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/png"
+	"image/jpeg"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -209,7 +209,7 @@ func testBridgeHandle(method string, params map[string]any, emit func(string, an
 		if err != nil {
 			return nil, &Error{Code: 3, Message: err.Error()}
 		}
-		png.Encode(f, image.NewGray(image.Rect(0, 0, n, n)))
+		jpeg.Encode(f, image.NewGray(image.Rect(0, 0, n, n)), nil) // like the real bridge
 		f.Close()
 		return map[string]any{"path": str("path"), "w": n, "h": n}, nil
 	}
@@ -545,7 +545,7 @@ func TestProcessSnapshotAndArtwork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.W != 64 || a.H != 64 || a.Path != filepath.Join(p.opts.CacheDir, "art", "ABCD-64.png") {
+	if a.W != 64 || a.H != 64 || a.Path != filepath.Join(p.opts.CacheDir, "art", "ABCD-64.jpg") {
 		t.Fatalf("artwork = %+v", a)
 	}
 	// Second call is served from disk.
@@ -579,7 +579,7 @@ func TestProcessPlaylistArtwork(t *testing.T) {
 	dir := filepath.Join(p.opts.CacheDir, "art")
 
 	a, err := p.PlaylistArtwork(ctx, "ABCD", 64)
-	if err != nil || a.W != 64 || a.Path != filepath.Join(dir, "pl-ABCD-64.png") {
+	if err != nil || a.W != 64 || a.Path != filepath.Join(dir, "pl-ABCD-64.jpg") {
 		t.Fatalf("playlist artwork = %+v, %v", a, err)
 	}
 	// A track or album with the same pid has its own file.
@@ -597,7 +597,7 @@ func TestProcessPlaylistArtwork(t *testing.T) {
 	}
 
 	// Stale but the bridge can't answer: the old file is better than nothing.
-	stale := filepath.Join(dir, "pl-FAIL-64.png")
+	stale := filepath.Join(dir, "pl-FAIL-64.jpg")
 	if err := os.Rename(a.Path, stale); err != nil {
 		t.Fatal(err)
 	}
@@ -612,7 +612,7 @@ func TestProcessPlaylistArtwork(t *testing.T) {
 	}
 
 	// Stale and the playlist no longer has a cover: the file goes.
-	gone := filepath.Join(dir, "pl-NOART-64.png")
+	gone := filepath.Join(dir, "pl-NOART-64.jpg")
 	if err := os.Rename(stale, gone); err != nil {
 		t.Fatal(err)
 	}
@@ -944,11 +944,13 @@ func TestProcessTrimsCachesAtStart(t *testing.T) {
 	old := time.Now().Add(-100 * 24 * time.Hour)
 	stale := time.Now().Add(-snapshotLeftoverAge - time.Minute)
 	for name, mod := range map[string]time.Time{
-		"snapshot-1.json":     stale, // a crashed run's
-		"snapshot-2.json.tmp": stale,
-		"snapshot-3.json":     time.Now(), // maybe another encore's, running now
-		"art/old.jpg":         old,
-		"art/new.jpg":         time.Now(),
+		"snapshot-1.json":      stale, // a crashed run's
+		"snapshot-2.json.tmp":  stale,
+		"snapshot-3.json":      time.Now(), // maybe another encore's, running now
+		"art/old.jpg":          old,
+		"art/new.jpg":          time.Now(),
+		"art/AB12-256.png":     time.Now(), // the old cover format
+		"art/plmosaic-P-1.png": time.Now(),
 	} {
 		p := filepath.Join(dir, name)
 		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
@@ -959,7 +961,7 @@ func TestProcessTrimsCachesAtStart(t *testing.T) {
 	(&Process{opts: Options{CacheDir: dir}}).trimCaches()
 	for name, want := range map[string]bool{
 		"snapshot-1.json": false, "snapshot-2.json.tmp": false, "snapshot-3.json": true,
-		"art/old.jpg": false, "art/new.jpg": true,
+		"art/old.jpg": false, "art/new.jpg": true, "art/AB12-256.png": false, "art/plmosaic-P-1.png": false,
 	} {
 		if _, err := os.Stat(filepath.Join(dir, name)); (err == nil) != want {
 			t.Errorf("%s: exists %v, want %v", name, err == nil, want)

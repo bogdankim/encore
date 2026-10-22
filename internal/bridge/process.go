@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image/png"
+	"image"
+	_ "image/jpeg" // covers are JPEG
+	_ "image/png"  // and older or fake ones PNG
 	"io"
 	"log"
 	"os"
@@ -837,11 +839,14 @@ const (
 // SnapshotTimeout, and another encore may be taking one right now.
 const snapshotLeftoverAge = 10 * time.Minute
 
-// trimCaches runs once at start, in the background: it deletes what a crash
-// left behind (snapshot temp files, which the bridge's SnapshotWriter also
-// leaves as .tmp) and trims the art folder.
+// trimCaches runs once at start, in the background: it deletes the old PNG
+// covers and what a crash left behind (snapshot temp files, which the
+// bridge's SnapshotWriter also leaves as .tmp) and trims the art folder.
 func (p *Process) trimCaches() {
 	dir := p.opts.CacheDir
+	// Covers were PNG files until they became JPEG (a tenth of the size, and
+	// much cheaper to decode). The old ones are never read again.
+	cachegc.RemoveGlob(filepath.Join(dir, "art", "*.png"), 0)
 	cachegc.RemoveGlob(filepath.Join(dir, "snapshot-*.json*"), snapshotLeftoverAge)
 	cachegc.Prune(filepath.Join(dir, "art"), artCacheMaxAge, artCacheMaxBytes)
 }
@@ -853,7 +858,7 @@ func (p *Process) trimCaches() {
 // heroNoneRetry in internal/ui): no longer than that.
 const NoArtworkTTL = time.Second
 
-// Artwork returns <CacheDir>/art/<pid>-<size>.png (size 0 means 600), asking
+// Artwork returns <CacheDir>/art/<pid>-<size>.jpg (size 0 means 600), asking
 // the bridge to write it on first use. Items without artwork are remembered
 // for NoArtworkTTL.
 func (p *Process) Artwork(ctx context.Context, pid string, size int) (Artwork, error) {
@@ -865,7 +870,7 @@ func (p *Process) Artwork(ctx context.Context, pid string, size int) (Artwork, e
 // redraws the ones it makes when a playlist is renamed.
 const PlaylistArtTTL = 24 * time.Hour
 
-// PlaylistArtwork returns <CacheDir>/art/pl-<pid>-<size>.png (size 0 means
+// PlaylistArtwork returns <CacheDir>/art/pl-<pid>-<size>.jpg (size 0 means
 // 600), the cover Music shows for the playlist, asking the bridge when the
 // file is missing or older than PlaylistArtTTL. A stale file is still used
 // when the bridge can't answer. Playlists without a cover are remembered
@@ -874,7 +879,7 @@ func (p *Process) PlaylistArtwork(ctx context.Context, pid string, size int) (Ar
 	return p.artworkFile(ctx, "playlist.artwork", pid, "pl-"+pid, size, PlaylistArtTTL)
 }
 
-// artworkFile serves <CacheDir>/art/<name>-<size>.png, asking the bridge's
+// artworkFile serves <CacheDir>/art/<name>-<size>.jpg, asking the bridge's
 // method to write it when it is missing or, with ttl > 0, older than ttl.
 func (p *Process) artworkFile(ctx context.Context, method, pid, name string, size int, ttl time.Duration) (Artwork, error) {
 	if size <= 0 {
@@ -888,7 +893,7 @@ func (p *Process) artworkFile(ctx context.Context, method, pid, name string, siz
 		return Artwork{}, nil
 	}
 	dir := filepath.Join(p.opts.CacheDir, "art")
-	path := filepath.Join(dir, key+".png")
+	path := filepath.Join(dir, key+".jpg")
 	stale, haveStale := cachedArtwork(path)
 	if haveStale && (ttl <= 0 || fileAge(path) < ttl) {
 		cachegc.Touch(path) // keep what is read; see artCacheMaxBytes
@@ -941,7 +946,7 @@ func cachedArtwork(path string) (Artwork, bool) {
 		return Artwork{}, false
 	}
 	defer f.Close()
-	cfg, err := png.DecodeConfig(f)
+	cfg, _, err := image.DecodeConfig(f)
 	if err != nil {
 		return Artwork{}, false
 	}
