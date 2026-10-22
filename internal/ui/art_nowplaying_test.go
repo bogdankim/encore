@@ -219,6 +219,42 @@ func TestHeroArtRetriesMissingArt(t *testing.T) {
 	}
 }
 
+// Answers from Music that something has no artwork, and loads that failed,
+// leave the maps once they no longer matter.
+func TestArtStoreForgetsExpiredAnswers(t *testing.T) {
+	now := time.Unix(1000, 0)
+	s := newArtStore(nil, art.NewRenderer(art.Options{Protocol: art.ProtoBlocks}))
+	s.now = func() time.Time { return now }
+	s.after = func(time.Duration, func()) {}
+	s.started = true
+
+	s.none["pid"] = noArt{at: now, n: 1}
+	s.block("tile", "pid", 10, 5, ArtTile)
+	if _, ok := s.none["pid"]; !ok || len(s.queue) != 0 {
+		t.Fatal("a tile asked again inside the TTL")
+	}
+	now = now.Add(noneTTL + time.Second)
+	s.block("tile", "pid", 10, 5, ArtTile)
+	if _, ok := s.none["pid"]; ok {
+		t.Fatal("the answer outlived its TTL")
+	}
+	if len(s.queue) != 1 {
+		t.Fatalf("queue %+v, want the tile asked for again", s.queue)
+	}
+
+	req := artReq{key: "t2", pid: "pid2", w: 10, h: 5}
+	s.failed[req] = now
+	s.block("t2", "pid2", 10, 5, ArtTile)
+	if _, ok := s.failed[req]; !ok {
+		t.Fatal("a failure inside artRetryAfter must stand")
+	}
+	now = now.Add(artRetryAfter + time.Second)
+	s.block("t2", "pid2", 10, 5, ArtTile)
+	if _, ok := s.failed[req]; ok {
+		t.Fatal("the failure was not forgotten when the tile was asked for again")
+	}
+}
+
 // testClock is a clock tests move by hand, safe to read from the art
 // workers.
 type testClock struct {

@@ -193,6 +193,22 @@ func TestCacheTTL(t *testing.T) {
 		}
 	})
 
+	t.Run("expired transient errors leave the map", func(t *testing.T) {
+		s, f, clk := newTestService(t, nil)
+		f.status = http.StatusInternalServerError
+		s.Get(ctx, q1)
+		q2 := q1
+		q2.Title = "Other"
+		clk.Add(10 * time.Minute) // q1's entry has expired and nobody asks for it again
+		s.Get(ctx, q2)
+		s.mu.Lock()
+		n := len(s.memory)
+		s.mu.Unlock()
+		if n != 1 {
+			t.Fatalf("%d transient entries after the first expired, want only the new one", n)
+		}
+	})
+
 	t.Run("stale plain survives an outage", func(t *testing.T) {
 		s, f, clk := newTestService(t, nil)
 		f.get["Song|Artist|Album"] = &Record{ID: 1, PlainLyrics: str("plain")}

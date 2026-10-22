@@ -888,8 +888,12 @@ func (p *Process) artworkFile(ctx context.Context, method, pid, name string, siz
 	key := name + "-" + strconv.Itoa(size)
 	p.artMu.Lock()
 	at, none := p.noArt[key]
+	if none && time.Since(at) >= NoArtworkTTL {
+		delete(p.noArt, key) // expired; it would otherwise sit there for the session
+		none = false
+	}
 	p.artMu.Unlock()
-	if none && time.Since(at) < NoArtworkTTL {
+	if none {
 		return Artwork{}, nil
 	}
 	dir := filepath.Join(p.opts.CacheDir, "art")

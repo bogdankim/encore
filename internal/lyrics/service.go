@@ -270,12 +270,15 @@ func (s *Service) next(ctx context.Context, q Query, prev *Lyrics, interim, back
 	}
 
 	s.mu.Lock()
-	if m, ok := s.memory[key]; ok && now.Before(m.until) {
-		s.mu.Unlock()
-		if cacheOK && cached.found() {
-			return final(cached.result())
+	if m, ok := s.memory[key]; ok {
+		if now.Before(m.until) {
+			s.mu.Unlock()
+			if cacheOK && cached.found() {
+				return final(cached.result())
+			}
+			return final(m.lyr, m.err)
 		}
-		return final(m.lyr, m.err)
+		delete(s.memory, key) // expired
 	}
 	c := s.inflight[key]
 	if c == nil {
@@ -394,6 +397,11 @@ func (s *Service) run(key string, q Query, c *call, old entry, hadOld bool, back
 
 	s.mu.Lock()
 	if lookupErr != nil && s.ctx.Err() == nil {
+		for k, m := range s.memory { // entries for tracks never asked for again
+			if !now.Before(m.until) {
+				delete(s.memory, k)
+			}
+		}
 		s.memory[key] = memEntry{until: now.Add(transientTTL), lyr: c.lyr, err: c.err}
 	} else {
 		delete(s.memory, key)

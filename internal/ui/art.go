@@ -76,6 +76,12 @@ const (
 	// Music is still fetching it. After that it is the new track's or the
 	// placeholder, never another song's.
 	nowArtHold = 4 * time.Second
+
+	// noneTTL is how long Music's answer that a pid has no artwork stands.
+	// Tiles take the first answer, and a hero that was told so
+	// heroNoneTries times counts as having none; after this they ask again,
+	// and the entry no longer sits in the map for the rest of the session.
+	noneTTL = 10 * time.Minute
 )
 
 // TileKeyPrefix starts the renderer key of every grid tile's image. Inside
@@ -340,15 +346,19 @@ func (s *artStore) frame() {
 // moment ago. It reports which.
 func (s *artStore) wantLocked(req artReq) artState {
 	if e, ok := s.none[req.pid]; ok {
-		if !req.hero {
+		switch {
+		case s.now().Sub(e.at) > noneTTL:
+			delete(s.none, req.pid) // asked again below
+		case !req.hero:
 			return artMissing
-		}
-		if wait := e.retry() - s.now().Sub(e.at); wait > 0 {
-			s.wakeLocked(wait)
-			if e.n >= heroNoneTries {
-				return artMissing
+		default:
+			if wait := e.retry() - s.now().Sub(e.at); wait > 0 {
+				s.wakeLocked(wait)
+				if e.n >= heroNoneTries {
+					return artMissing
+				}
+				return artWaiting
 			}
-			return artWaiting
 		}
 	}
 	s.seq++
@@ -373,6 +383,7 @@ func (s *artStore) wantLocked(req artReq) artState {
 			}
 			return artWaiting
 		}
+		delete(s.failed, req) // time to try again
 	}
 	if !s.started {
 		s.started = true

@@ -571,6 +571,12 @@ func TestProcessSnapshotAndArtwork(t *testing.T) {
 	if a, err := p.Artwork(ctx, "LATE", 64); err != nil || a.Path == "" {
 		t.Fatalf("after the TTL = %+v, %v; want the bridge asked again", a, err)
 	}
+	p.artMu.Lock()
+	_, left := p.noArt["LATE-64"]
+	p.artMu.Unlock()
+	if left {
+		t.Fatal("an expired no-artwork answer stays in the map")
+	}
 }
 
 func TestProcessPlaylistArtwork(t *testing.T) {

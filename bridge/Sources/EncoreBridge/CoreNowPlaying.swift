@@ -169,10 +169,17 @@ final class PlayerMonitor: @unchecked Sendable {
   // MARK: expected values
 
   /// Report `value` for `key` ("state", "volume", "shuffle", "repeat") until Music agrees.
-  func expect(_ key: String, _ value: AnyHashable) {
-    expected[key] = Expected(value: value, until: .now() + Self.expectWindow)
+  func expect(_ key: String, _ value: AnyHashable, window: DispatchTimeInterval = PlayerMonitor.expectWindow) {
+    // Reads only clear the keys they look at, so the "fav:" and "dis:" keys of
+    // tracks that are no longer playing would stay for the whole session.
+    let now = DispatchTime.now()
+    expected = expected.filter { $0.value.until >= now }
+    expected[key] = Expected(value: value, until: now + window)
     cached = nil
   }
+
+  /// How many written values still wait for Music to agree (tests).
+  var pendingExpectations: Int { expected.count }
 
   /// Music keeps favorite and dislike exclusive: setting one clears the other.
   func expectFavorite(_ pid: String, _ value: Bool) {
