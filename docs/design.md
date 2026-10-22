@@ -301,9 +301,11 @@ can. While Music plays to AirPlay only, its process object (found with
 `kAudioHardwarePropertyTranslatePIDToProcessObject`) has
 `kAudioProcessPropertyIsRunningOutput` 0 and no output-scope
 `kAudioProcessPropertyDevices`, because Music streams AirPlay itself. In the
-broken state the sound comes out of the speakers, so the process should run
-output on a local device. That last part is a hypothesis: nobody captured the
-readings in a broken session yet, which is why the bridge logs them.
+broken state the sound comes out of the speakers and the process runs output
+on the built-in speakers (`runningOutput 1`, `MacBook Pro Speakers [bltn]`).
+Confirmed on 2026-10-22 after an unlock: the bridge saw that reading with
+Living Room selected, reconnected, and local output stopped (`runningOutput
+0`, no outputs); the HomePod played again.
 
 - `AirPlayRepairer` (`AirPlayRepair.swift`, on the AirPlay queue) reads
   CoreAudio on CoreAudio listeners (Music's process object:
@@ -335,8 +337,7 @@ readings in a broken session yet, which is why the bridge logs them.
   by the Go client in `Options.NoAirPlayReconnect`) keeps the detection and
   the log ("would reconnect") but never changes the route.
 - `ENCORE_AUDIO_PROBE=1 swift test --filter probe` in `bridge/` prints one
-  reading the same way, without touching Music. Run it while the route is
-  broken to check the hypothesis by hand.
+  reading the same way, without touching Music.
 - The fake's `DropAirPlayRoute(ok)` emits the same two events, so UI tests
   cover the footer status ("Reconnected to Living Room", or "Couldn't
   reconnect to Living Room" as a warning).
