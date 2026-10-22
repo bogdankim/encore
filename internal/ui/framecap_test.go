@@ -115,3 +115,20 @@ func TestAppHoldsFramesDuringKeyRepeat(t *testing.T) {
 		t.Fatal("the flush did not show the held step")
 	}
 }
+
+func TestOnInputSeesInputOnly(t *testing.T) {
+	a := newShellApp(t, 120, 36)
+	n := 0
+	a.o.OnInput = func() { n++ }
+	a.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	a.Update(tea.MouseMotionMsg{X: 10, Y: 10})
+	a.Update(tea.WindowSizeMsg{Width: 130, Height: 40})
+	if n != 3 {
+		t.Fatalf("OnInput ran %d times for a key, a mouse move and a resize, want 3", n)
+	}
+	a.Update(tickMsg{})
+	a.Update(artMsg{})
+	if n != 3 {
+		t.Fatalf("OnInput ran for a tick or an art message")
+	}
+}

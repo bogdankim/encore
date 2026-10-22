@@ -57,6 +57,9 @@ type Options struct {
 	ArtCacheDir string
 	// HomePage is Apple Music's Home page read before start, or nil.
 	HomePage *home.Page
+	// OnInput is called for each key, paste, mouse and resize message, to
+	// tell the caller the user is there. May be nil.
+	OnInput func()
 	// FrameCap is the shortest time between two frames while a key or the
 	// wheel repeats (see frameGate); 0 builds a frame for every message.
 	FrameCap time.Duration
@@ -351,6 +354,12 @@ func buildIndex(lib *library.Library) tea.Cmd {
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	view := a.viewKey()
 	a.gate.capEvery = a.o.FrameCap
+	if a.o.OnInput != nil {
+		switch msg.(type) {
+		case tea.KeyPressMsg, tea.PasteMsg, tea.MouseMsg, tea.WindowSizeMsg:
+			a.o.OnInput()
+		}
+	}
 	a.gate.input(msg, time.Now())
 	if _, ok := msg.(frameFlushMsg); ok {
 		a.gate.flushed()

@@ -53,6 +53,9 @@ func run(demo bool) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	mem := newMemTuner() // sets the soft memory limit before the library loads
+	go mem.run(ctx)
+
 	cfg, warns, err := config.Load()
 	if err != nil {
 		warns = append(warns, err.Error())
@@ -188,6 +191,7 @@ func run(demo bool) error {
 		HomePage:       homePage(),
 		Start:          cfg.Start,
 		FrameCap:       time.Second / 30, // while a key or the wheel repeats
+		OnInput:        mem.Touch,
 	})
 	prog := tea.NewProgram(app, tea.WithOutput(out))
 	ref.send = prog.Send
