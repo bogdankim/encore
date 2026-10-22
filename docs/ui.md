@@ -22,7 +22,9 @@ several people can build views and overlays independently and they still fit.
 ui/
   app.go         root model: deps, layout, focus, navigation, overlays, message routing
   layout.go      rectangles from the window size; hit testing by rectangle
-  draw.go        fit/pad/truncate helpers, rules, scrollbar, column layout
+  draw.go        fit/pad/truncate helpers, rules, scrollbar, column layout. `Width` measures
+                 ASCII, CSI sequences and known one-cell glyphs itself and leaves the rest to
+                 `ansi.StringWidth`; `Box` returns a block that already fits as it is
   ctx.go         Ctx passed to views: theme, library, player snapshot, helpers
   playerbar.go   top bar: transport, LCD (art, title, artist · album, progress), volume, AirPlay, toggles
   sidebar.go     Library sections + playlist tree
@@ -78,6 +80,13 @@ Message routing in `Update`:
    keeps going while the terminal is in the background if lyrics are on
    screen), `lyricsMsg`, `artMsg`, `searchMsg`, `snapshotMsg`,
    `airplayMsg`, `lastfmMsg`.
+
+Frames. While a key or the wheel repeats (steps less than 80 ms apart) frames
+are held to `Options.FrameCap` (30 a second in `main`): `View` hands back the
+last frame, and a `frameFlushMsg` at the end of the interval shows the newest
+step (`framecap.go`). The first press of a burst, a lone press and every other
+message build a frame at once. Art that finishes within 250 ms of a burst waits
+for the same slot.
 
 ## View interface
 
@@ -254,7 +263,8 @@ have no play badge; hovering one says "Opens in Music.app".
 
 `art.Renderer` decides the protocol. Views ask for art through `Ctx` with a key
 (album key or track pid) and a cell size; the app loads it through
-`bridge.Client.Artwork` in a Cmd, caches the PNG bytes, and re-renders on `artMsg`.
+`bridge.Client.Artwork` in a Cmd (the bridge writes a JPEG file), decodes it once, and
+re-renders on `artMsg`.
 A pid with `://` is a URL (Apple Music artwork): `art_url.go` fetches it
 over HTTP at the size needed (`Options.ArtFetch` replaces that in demo mode)
 and keeps `catalog-<id>-<px>.jpg` in `Options.ArtCacheDir`; the queue, LRU
@@ -272,7 +282,12 @@ even when nothing else redraws. Tiles take the first answer.
 failed) and what the now-playing art shows and why to
 `~/Library/Logs/encore/art.log`.
 Grid tiles (`Ctx.TileArt`) are images too on iTerm2-protocol terminals, fetched
-at 256 px and at most 64 per frame (the renderer keeps 96 decoded images). Inside
+at 256 px and at most 64 per frame. The renderer keeps the encoded payload of
+every tile it has drawn, up to 8 MB (about 700 tiles), and `artStore.tileImage`
+counts a tile as ready while its payload is kept, so scrolling back over covers
+decodes and loads nothing. The decoded image (96 of them, 48 MB at most) is only
+needed to cut a piece from a tile the grid's edge or an overlay crops, so such a
+tile passes `decoded` and reloads when the image is gone. Inside
 tmux on WezTerm and iTerm2 every image goes through passthrough as an iTerm2
 image; with `art = "sixel"` each tile row is one sixel image (`Ctx.TileRow`). Elsewhere, while a tile loads, and while the grid is scrolling fast (a
 scroll step within 150 ms of the last one) they are half blocks; images come back

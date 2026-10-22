@@ -324,8 +324,14 @@ Files:
 | Path | Contents |
 |---|---|
 | `~/.config/encore/config.toml` | config |
-| `~/Library/Caches/encore/` | library cache, lyrics, the Home page copy, the extracted bridge |
+| `~/Library/Caches/encore/` | library cache, covers (`art/`, JPEG), lyrics, the Home page copy, the extracted bridge |
 | `~/Library/Application Support/encore/` | scrobble queue, lyric offsets, secrets fallback |
+
+## Cache size and memory
+
+encore trims its cache at start, in the background. Covers in `art/` that nothing has used for 90 days are deleted, then the least recently used until the folder is under 256 MB. Lyrics in `lyrics/` go after 120 days unused, and the folder is capped at 64 MB. Covers are JPEG files, about 10 KB for a grid tile. Earlier versions kept PNG files (97 KB per tile). encore deletes those at the first start and fetches the covers again as you scroll.
+
+encore sets a soft limit of 100 MB on Go's heap and raises it by itself for a very large library. Scrolling the whole album grid of the demo library leaves it at about 96 MB, and about 78 MB a few seconds after you stop. The bridge, a separate process, is about 30 MB. To choose your own limit, set `GOMEMLIMIT` before starting encore, for example `GOMEMLIMIT=150MiB encore`. encore then leaves the limit alone.
 
 ## Known limitations
 

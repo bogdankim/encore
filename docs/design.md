@@ -197,7 +197,7 @@ index so art never waits behind a snapshot.
 | Method | Params | Result |
 |---|---|---|
 | `hello` | `{}` | `{"version": "1", "musicRunning": bool, "automation": "granted"\|"denied"\|"undetermined"\|"pending", "library": "granted"\|"denied"\|"unknown"}`. `library` is Media & Apple Music access. `pending` while the bridge checks or waits for the Automation prompt. Never prompts. |
-| `library.snapshot` | `{"path": "/abs/file.json"}` | writes a `Snapshot` (below) to `path`, returns `{"tracks": n, "playlists": n, "ms": n}` |
+| `library.snapshot` | `{"path": "/abs/file.json"}` | writes a `Snapshot` (below) to `path`, returns `{"tracks": n, "playlists": n, "ms": n}`. The bridge encodes 2,000 tracks at a time and appends them (`SnapshotWriter`), so a 100,000-track library costs +17 MB while it is written instead of +481 MB; the Go side reads the arrays one element at a time (`decodeSnapshot`). |
 | `player.state` | `{}` | `NowPlaying` |
 | `player.playpause` / `player.pause` / `player.play` | `{}` | `{}` (`player.play` resumes; `playpause` reads the state and sends pause or play; pause and play are checked at 400 ms and 1.2 s and resent through MediaRemote if Music ignored them) |
 | `player.next` / `player.previous` | `{}` | `{}` |
@@ -215,8 +215,8 @@ index so art never waits behind a snapshot.
 | `airplay.list` | `{}` | `{"devices": [AirPlayDevice]}` |
 | `airplay.select` | `{"ids": [int]}` | `{}` (selected set becomes exactly these) |
 | `airplay.volume` | `{"id": int, "volume": 0..100}` | `{}` |
-| `artwork.get` | `{"pid": "HEX", "size": px, "path": "/abs/out.png"}` | `{"path": "…", "w": n, "h": n}` or `{"path": ""}` when there is none. Square, resized with ImageIO, PNG. `pid` may be a track or an album persistent ID. |
-| `playlist.artwork` | `{"pid": "HEX", "size": px, "path": "/abs/out.png"}` | Same reply as `artwork.get`, for the cover Music shows for a playlist (`raw data of artwork 1 of playlist`; `count of artworks` reads 0 even when there is one). Always an Apple Event: ITLibrary has no playlist artwork. `{"path": ""}` for Library, Music Videos and some subscription playlists. |
+| `artwork.get` | `{"pid": "HEX", "size": px, "path": "/abs/out.jpg"}` | `{"path": "…", "w": n, "h": n}` or `{"path": ""}` when there is none. Square, resized with ImageIO, JPEG at quality 0.9 (a 256 px cover is about 10 KB; as PNG it was 97 KB). `pid` may be a track or an album persistent ID. |
+| `playlist.artwork` | `{"pid": "HEX", "size": px, "path": "/abs/out.jpg"}` | Same reply as `artwork.get`, for the cover Music shows for a playlist (`raw data of artwork 1 of playlist`; `count of artworks` reads 0 even when there is one). Always an Apple Event: ITLibrary has no playlist artwork. `{"path": ""}` for Library, Music Videos and some subscription playlists. |
 
 ### Events
 
@@ -226,7 +226,7 @@ index so art never waits behind a snapshot.
 | `airplay` | `{"devices": [AirPlayDevice]}` | when the selection or volumes change (poll every 5 s while the AirPlay picker is open, requested by `airplay.list`) |
 | `airplay.repaired` | `{"devices": ["Living Room"], "ok": bool}` | after the bridge reconnected a stale AirPlay route (see "AirPlay route repair"). `devices` are the names it selected again; `ok` is false when Music kept playing on the Mac or refused the change |
 | `music` | `{"running": bool}` | Music.app launched or quit (NSWorkspace notifications) |
-| `library` | `{}` | the library changed (ITLibrary reload shows a different item count or modification), checked every 60 s and on `music.running`; also after a permission prompt |
+| `library` | `{}` | the library changed, checked every 60 s and on `music.running`; also after a permission prompt. With the library in its default place the check is the size and mtime of `Library.musicdb`; for a library stored elsewhere it is an ITLibrary reload (item count, newest modification), which is skipped while Music isn't running |
 | `permissions` | `{"automation": …, "library": …}` | the bridge started waiting for the Automation answer (`automation` is `pending`), or the user answered a permission prompt; fields as in `hello` |
 
 ### Types
@@ -420,7 +420,10 @@ Living Room selected, reconnected, and local output stopped (`runningOutput
 
 - Loaded from the disk cache (`~/Library/Caches/encore/library.cache`) at start, then
   refreshed from `library.snapshot` in the background; the UI swaps the index
-  atomically and keeps the cursor on the same item.
+  atomically and keeps the cursor on the same item. A refresh waits 20 times as
+  long as the last successful one took (at most 5 minutes) after it, on top of the
+  5 s debounce, so a big library isn't re-read because Music rewrote its database.
+  `setLibrary` resets the search filters' corpora, which point into the old library.
 - Views: Recently Added (albums by newest track `added`), Artists (by album artist,
   falling back to artist; "Various Artists" for compilations), Albums (by album
   pid; fallback key `albumArtist|album`), Songs (in-library tracks), Favorites
@@ -769,11 +772,47 @@ re-auth needed). Scrobbles queue on disk and retry with backoff.
 - Config: `~/.config/encore/config.toml` (theme, accent, icons, keys, sidebar
   width, art protocol, lyrics provider toggles, last.fm on/off, AirPlay
   auto-reconnect).
-- Cache: `~/Library/Caches/encore/` (library.cache, art/, lyrics/, bin/).
+- Cache: `~/Library/Caches/encore/` (library.cache, art/, lyrics/, bin/). See
+  "Caches and memory" for what is bounded.
 - State: `~/Library/Application Support/encore/` (scrobble queue, lyric offsets,
   last view, UI state).
 - Logs: `~/Library/Logs/encore/bridge.log` (the bridge's stderr and the Go
   client's own diagnostics, rotated at 5 MB).
+
+## Caches and memory
+
+Everything encore keeps is bounded. The limits, so a number you see in `top` has an explanation:
+
+| What | Where | Limit |
+|---|---|---|
+| Covers (library, Apple Music, playlist mosaics) | `art/*.jpg`, JPEG | files unused for 90 days go at start, then the least recently used until the folder is under 256 MB. A read bumps the file's mtime at most once a day. |
+| Covers from before JPEG | `art/*.png` | deleted at start |
+| Lyrics | `lyrics/*.json` | 120 days unused, 64 MB |
+| Catalog and Home copies | `catalog/`, `home/` | 7 days (catalog) |
+| Snapshot temp files | `snapshot-*.json*` | deleted at start when over 10 minutes old (a crash left them) |
+| Decoded cover images | `art.Renderer.images` | 96 images and 48 MB |
+| Scaled boxes (what an iTerm2 image is cut from) | `art.Renderer.boxes` | 96 boxes and 32 MB |
+| Encoded payloads (the bytes sent to the terminal) | `art.Renderer.payloads` | 8 MB, about 700 grid tiles. A tile counts as ready while its payload is kept, even when its decoded image is gone. |
+| Half-block tiles | `artStore.tiles` | 512 tiles |
+| "No artwork" answers | `artStore.none`, `bridge.Process.noArt` | 10 minutes and 1 s; expired entries are deleted when met |
+| Bridge `ArtIndex` (an `ITLibMediaItem` per track) | bridge | released after 120 s without an artwork request, reloaded in about 0.5 s |
+
+The art folder, the lyrics folder and the snapshot leftovers are cleaned by a
+goroutine at start (`internal/cachegc`), never on the UI goroutine.
+
+Go's heap is the rest. Go lets it grow to twice the live data before it
+collects, and a scroll through the album grid makes a lot of short-lived
+garbage, so without a limit the resident size sat at 131 MB on the demo library
+(140 to 150 MB on a real one). encore sets a soft memory limit of 100 MB at
+start (`cmd/encore/memory.go`), which only makes the collector work harder as
+the process nears it. A live heap that needs more raises the limit (live x 1.25
++ 20 MB, checked every 2 s), so a 100,000-track library doesn't leave the
+collector running all the time. `GOMEMLIMIT` in the environment replaces the
+whole mechanism. Once the UI has had no key, mouse or resize for 5 s after
+64 MB of allocation (a scroll, a library refresh), `debug.FreeOSMemory` runs
+once. On the demo library, scrolling the grid three times left 133 MB resident
+at the end of each pass; with the limit it is 96 MB, and 78 MB four seconds
+after the last scroll.
 
 ## Performance budgets
 
@@ -784,6 +823,8 @@ re-auth needed). Scrobbles queue on disk and retry with backoff.
 | Search keystroke → results (50k tracks) | 10 ms |
 | View() with 200×60 terminal | 2 ms |
 | Play command → bridge send | same frame |
+| Holding `j` in the album grid (demo library, 169×52, pty harness) | 22 to 24% of a core once the covers are cached, 41% the first time through; wheel 18%; page down 13 to 18%. Before: 74%, 48%, 76% |
+| Resident memory after scrolling the whole grid (demo library) | 96 MB, 78 MB once idle (it was 133 MB) |
 
 ## Testing
 
