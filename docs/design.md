@@ -715,7 +715,8 @@ leader = "space"
   only opens in Music has just that item). Search results have the menu too.
 - Right-click the player bar's title, artist or art, or Up Next's playing
   row, for the playing song's menu: Go to Album, Go to Artist, then
-  Favorite for a library song or Open in Music.app for an Apple Music one.
+  Favorite for a library song or Open in Music.app for an Apple Music one,
+  a station's song among them (found in the library, else in the catalog).
 - When the first press of a double-click opens a view or an overlay, encore
   drops the second press, so it never plays the track that ends up under the
   pointer.

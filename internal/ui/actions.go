@@ -147,7 +147,9 @@ func (a *App) global(act keymap.Action, n int) tea.Cmd {
 			return a.setStatus("Nothing is playing", false)
 		case a.snap.Catalog != nil:
 			return a.openPlayingCatalog(false)
-		case t == nil || t.Album == nil:
+		case t == nil:
+			return a.openPlayingOutside(false)
+		case t.Album == nil:
 			return a.setStatus("No album page for this song", false)
 		default:
 			return a.OpenAlbum(t.Album)
@@ -403,7 +405,8 @@ func (a *App) barMouse(ev MouseEvent) tea.Cmd {
 }
 
 // openPlayingArtist opens the page of the playing track's artist, or of the
-// artist it is listed under.
+// artist it is listed under; for a station's song, the library's or the
+// catalog's (see playing_outside.go).
 func (a *App) openPlayingArtist() tea.Cmd {
 	ct, t := a.snap.NowPlaying.Track, a.snap.Track
 	switch {
@@ -412,7 +415,7 @@ func (a *App) openPlayingArtist() tea.Cmd {
 	case a.snap.Catalog != nil:
 		return a.openPlayingCatalog(true)
 	case t == nil:
-		return a.setStatus("No artist page for this song", false)
+		return a.openPlayingOutside(true)
 	}
 	if ar := a.lib.Artist(t.Artist); ar != nil {
 		return a.OpenArtist(ar)

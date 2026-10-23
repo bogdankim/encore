@@ -278,6 +278,17 @@ takes seconds, so hero art asks again 1 s after a "none" answer, doubling up to
 30 s, for as long as it is on screen; a failed load is asked again after 3 s.
 Each such answer schedules a redraw for when the retry is due, so it happens
 even when nothing else redraws. Tiles take the first answer.
+
+A station's song (neither a library track nor a catalog song encore started)
+has `Snapshot.Track` and `Catalog` nil. Go to Album and Go to Artist (keys,
+bar clicks, the playing song's menu) handle it in `playing_outside.go`: the
+library's album (`libraryAlbumOf`: album by album artist or artist, then the
+song alone) or artist first, else the catalog's, from one song search per pid
+that `outsideArt` keeps (`noteSong`, shared with the art lookup, matched with
+`pickSong`). The search runs on demand with "Finding the album…" in the footer,
+opens nothing when the pid changed meanwhile, and a live station (`Snapshot.Live`,
+or no album and no duration) never searches. The menu's Open in Music.app uses
+the same answer, and is left out once the search found no match.
 `ENCORE_DEBUG_ART=1` logs every load (queued, pruned, started, done, none,
 failed) and what the now-playing art shows and why to
 `~/Library/Logs/encore/art.log`.

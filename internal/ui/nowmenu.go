@@ -15,7 +15,7 @@ type nowMenuHost interface {
 // NowPlayingMenu opens the playing song's menu at a screen cell (the
 // player bar's title or art, Up Next's playing row): its album and
 // artist, then Favorite for a library song, and Open in Music.app for an
-// Apple Music one.
+// Apple Music one, a station's song among them.
 func (a *App) NowPlayingMenu(x, y int) tea.Cmd {
 	if a.snap.NowPlaying.Track == nil {
 		return nil
@@ -31,6 +31,9 @@ func (a *App) NowPlayingMenu(x, y int) tea.Cmd {
 		if p, ok := songPage(ci.StoreID, ci.AlbumID, ci.Title); ok {
 			items = menuGroup(items, musicMenuItem(p))
 		}
+	}
+	if it, ok := a.outsideMenuItem(); ok {
+		items = menuGroup(items, it)
 	}
 	return a.PushOverlay(NewMenu(x, y, nil, items...))
 }

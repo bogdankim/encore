@@ -173,6 +173,9 @@ type App struct {
 	// outside is the art found for songs from outside the library (see
 	// App.playingArt).
 	outside outsideArt
+	// finding is the Go to lookup running for a station song (see
+	// withOutsideSong); only the UI goroutine touches it.
+	finding string
 	// lastPlaced is the hero art placed in the last frame, for the art log.
 	lastPlaced string
 

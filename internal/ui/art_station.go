@@ -40,8 +40,54 @@ type outsideSong struct {
 	seen   time.Time
 	lib    *library.Library // the library ref was matched against
 	ref    artRef           // the art to use; zero: none found (yet)
-	looked bool             // the catalog was asked
+	looked bool             // the catalog was asked for the art
+
+	// The catalog song this one is, for Go to Album, Go to Artist and Open
+	// in Music.app (see playing_outside.go): set by whichever lookup ran
+	// first. resolved: a search ended without an error; found: it matched
+	// song.
+	resolved, found bool
+	song            catalog.Song
 }
+
+// entry is the record of pid, made when there is none. o.mu is held.
+func (o *outsideArt) entry(pid string, now time.Time) *outsideSong {
+	if o.songs == nil || len(o.songs) > outsideMax {
+		o.songs = map[string]*outsideSong{}
+	}
+	s := o.songs[pid]
+	if s == nil {
+		s = &outsideSong{seen: now}
+		o.songs[pid] = s
+	}
+	return s
+}
+
+// resolvedSong is what is known of the catalog song behind pid: the song,
+// whether it matched, and whether a search has settled it.
+func (o *outsideArt) resolvedSong(pid string) (song catalog.Song, found, resolved bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if s := o.songs[pid]; s != nil {
+		return s.song, s.found, s.resolved
+	}
+	return catalog.Song{}, false, false
+}
+
+// noteSong records the outcome of a catalog search for pid's song: the
+// song it matched, or none. A failed search settles nothing.
+func (o *outsideArt) noteSong(pid string, now time.Time, songs []catalog.Song, ct *bridge.CurrentTrack, err error) {
+	if err != nil {
+		return
+	}
+	song, ok := pickSong(songs, ct.Name, ct.Artist, ct.Album, secondsDur(ct.Duration))
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	s := o.entry(pid, now)
+	s.resolved, s.found, s.song = true, ok, song
+}
+
+func secondsDur(sec float64) time.Duration { return time.Duration(sec * float64(time.Second)) }
 
 // playingArt is the art to ask for, for the playing track whose own art is
 // cur: cur itself, unless the track is from outside the library and its art
@@ -54,14 +100,7 @@ func (a *App) playingArt(c *Ctx, cur artRef) artRef {
 	o := &a.outside
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.songs == nil || len(o.songs) > outsideMax {
-		o.songs = map[string]*outsideSong{}
-	}
-	s := o.songs[ct.PID]
-	if s == nil {
-		s = &outsideSong{seen: a.art.now()}
-		o.songs[ct.PID] = s
-	}
+	s := o.entry(ct.PID, a.art.now())
 	if s.lib != a.lib {
 		s.lib = a.lib
 		if ref, ok := libraryArtFor(a.lib, ct); ok {
@@ -74,6 +113,11 @@ func (a *App) playingArt(c *Ctx, cur artRef) artRef {
 	}
 	if !s.looked && a.svc.Catalog != nil && a.art.answeredNone(ct.PID) && a.art.now().Sub(s.seen) >= outsideLookupAfter {
 		s.looked = true
+		if s.resolved && s.found && s.song.Artwork != "" {
+			// Go to Album found the song already: no second search
+			s.ref = catalogArtRef(s.song)
+			return s.ref
+		}
 		go a.lookupOutsideArt(*ct)
 	}
 	return cur
@@ -85,6 +129,7 @@ func (a *App) lookupOutsideArt(ct bridge.CurrentTrack) {
 	ctx, cancel := context.WithTimeout(context.Background(), catalogTimeout)
 	res, err := a.svc.Catalog.SearchKinds(ctx, ct.Name+" "+ct.Artist, catalog.Songs, 10)
 	cancel()
+	a.outside.noteSong(ct.PID, a.art.now(), res.Songs, &ct, err)
 	ref, ok := catalogArtFor(res.Songs, &ct)
 	switch {
 	case err != nil:
@@ -176,10 +221,14 @@ func catalogArtFor(songs []catalog.Song, ct *bridge.CurrentTrack) (artRef, bool)
 	if best < 0 {
 		return artRef{}, false
 	}
-	s := songs[best]
+	return catalogArtRef(songs[best]), true
+}
+
+// catalogArtRef is the art of catalog song s, by its album's catalog key.
+func catalogArtRef(s catalog.Song) artRef {
 	key := player.CatalogAlbumPrefix + strconv.FormatInt(s.AlbumID, 10)
 	if s.AlbumID <= 0 {
 		key = player.StorePID(strconv.FormatInt(s.ID, 10))
 	}
-	return artRef{key, s.ArtURL(catalogArtPx)}, true
+	return artRef{key, s.ArtURL(catalogArtPx)}
 }
