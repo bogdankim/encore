@@ -168,7 +168,7 @@ func TestHeroArtLoadsBeforeTiles(t *testing.T) {
 
 // Music can report no artwork, or time out, for a track that has just
 // started. Hero art asks again after a second, then less and less often,
-// but never gives up while it is on screen; tiles keep the first answer.
+// but never gives up while it is on screen; tiles ask again after tileNoneRetry.
 func TestHeroArtRetriesMissingArt(t *testing.T) {
 	now := time.Unix(1000, 0)
 	s := newArtStore(nil, art.NewRenderer(art.Options{Protocol: art.ProtoBlocks}))
@@ -210,12 +210,17 @@ func TestHeroArtRetriesMissingArt(t *testing.T) {
 
 	bar := artReq{key: "bar2", pid: "pid2", w: 6, h: 3, hero: true}
 	tile := artReq{key: "tile2", pid: "pid2", w: 10, h: 5}
-	s.failed[bar], s.failed[tile] = now, now
+	s.failed[bar], s.failed[tile] = failure{at: now, n: 1}, failure{at: now, n: 2}
 	now = now.Add(heroRetryAfter + time.Millisecond)
 	s.block("bar2", "pid2", 6, 3, ArtHero)
 	s.block("tile2", "pid2", 10, 5, ArtTile)
 	if !queued("bar2") || queued("tile2") {
-		t.Fatalf("after a failure: queue %+v, want the hero alone", s.queue)
+		t.Fatalf("after a failure: queue %+v, want the hero alone (the tile's second failure waits longer)", s.queue)
+	}
+	now = now.Add(tileRetryFirst)
+	s.block("tile2", "pid2", 10, 5, ArtTile)
+	if !queued("tile2") {
+		t.Fatalf("a tile that failed twice was not asked again after %v", 2*tileRetryFirst)
 	}
 }
 
@@ -228,7 +233,7 @@ func TestArtStoreForgetsExpiredAnswers(t *testing.T) {
 	s.after = func(time.Duration, func()) {}
 	s.started = true
 
-	s.none["pid"] = noArt{at: now, n: 1}
+	s.none["pid"] = noArt{at: now, n: tileNoneTries}
 	s.block("tile", "pid", 10, 5, ArtTile)
 	if _, ok := s.none["pid"]; !ok || len(s.queue) != 0 {
 		t.Fatal("a tile asked again inside the TTL")
@@ -243,15 +248,15 @@ func TestArtStoreForgetsExpiredAnswers(t *testing.T) {
 	}
 
 	req := artReq{key: "t2", pid: "pid2", w: 10, h: 5}
-	s.failed[req] = now
+	s.failed[req] = failure{at: now, n: 1}
 	s.block("t2", "pid2", 10, 5, ArtTile)
 	if _, ok := s.failed[req]; !ok {
-		t.Fatal("a failure inside artRetryAfter must stand")
+		t.Fatal("a failure inside its retry time must stand")
 	}
-	now = now.Add(artRetryAfter + time.Second)
+	now = now.Add(noneTTL + time.Second)
 	s.block("t2", "pid2", 10, 5, ArtTile)
 	if _, ok := s.failed[req]; ok {
-		t.Fatal("the failure was not forgotten when the tile was asked for again")
+		t.Fatal("a failure from long ago was not forgotten when the tile was asked for again")
 	}
 }
 

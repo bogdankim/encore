@@ -277,7 +277,13 @@ reports no artwork for a station or catalog song until it has fetched it, which
 takes seconds, so hero art asks again 1 s after a "none" answer, doubling up to
 30 s, for as long as it is on screen; a failed load is asked again after 3 s.
 Each such answer schedules a redraw for when the retry is due, so it happens
-even when nothing else redraws. Tiles take the first answer.
+even when nothing else redraws. A tile that failed asks again after 2 s, then
+4 s, doubling up to 30 s, and one told "no artwork" asks again after 10 s and
+after 1 minute before the answer stands for 10 minutes (`artStore.none`,
+`tileNoneRetry`): the bridge's "none" can be a "can't tell yet" (its library
+index reloading, a snapshot not read), and a blank cover must not last that long.
+A cover file the cache trimming removed after the bridge's answer is asked for
+again once.
 
 A station's song (neither a library track nor a catalog song encore started)
 has `Snapshot.Track` and `Catalog` nil. Go to Album and Go to Artist (keys,

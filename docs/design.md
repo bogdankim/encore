@@ -215,7 +215,7 @@ index so art never waits behind a snapshot.
 | `airplay.list` | `{}` | `{"devices": [AirPlayDevice]}` |
 | `airplay.select` | `{"ids": [int]}` | `{}` (selected set becomes exactly these) |
 | `airplay.volume` | `{"id": int, "volume": 0..100}` | `{}` |
-| `artwork.get` | `{"pid": "HEX", "size": px, "path": "/abs/out.jpg"}` | `{"path": "…", "w": n, "h": n}` or `{"path": ""}` when there is none. Square, resized with ImageIO, JPEG at quality 0.9 (a 256 px cover is about 10 KB; as PNG it was 97 KB). `pid` may be a track or an album persistent ID. |
+| `artwork.get` | `{"pid": "HEX", "size": px, "path": "/abs/out.jpg"}` | `{"path": "…", "w": n, "h": n}` or `{"path": ""}` when there is none. Square, resized with ImageIO, JPEG at quality 0.9 (a 256 px cover is about 10 KB; as PNG it was 97 KB). `pid` may be a track or an album persistent ID. Through Music (when ITLibrary can't answer) an album pid is mapped to a track by the last snapshot; before the first one a pid Music doesn't know is an error, not `{"path": ""}`, because it can't be told from an album yet. |
 | `playlist.artwork` | `{"pid": "HEX", "size": px, "path": "/abs/out.jpg"}` | Same reply as `artwork.get`, for the cover Music shows for a playlist (`raw data of artwork 1 of playlist`; `count of artworks` reads 0 even when there is one). Always an Apple Event: ITLibrary has no playlist artwork. `{"path": ""}` for Library, Music Videos and some subscription playlists. |
 
 ### Events
@@ -795,8 +795,9 @@ Everything encore keeps is bounded. The limits, so a number you see in `top` has
 | Scaled boxes (what an iTerm2 image is cut from) | `art.Renderer.boxes` | 96 boxes and 32 MB |
 | Encoded payloads (the bytes sent to the terminal) | `art.Renderer.payloads` | 8 MB, about 700 grid tiles. A tile counts as ready while its payload is kept, even when its decoded image is gone. |
 | Half-block tiles | `artStore.tiles` | 512 tiles |
-| "No artwork" answers | `artStore.none`, `bridge.Process.noArt` | 10 minutes and 1 s; expired entries are deleted when met |
-| Bridge `ArtIndex` (an `ITLibMediaItem` per track) | bridge | released after 120 s without an artwork request, reloaded in about 0.5 s |
+| "No artwork" answers | `artStore.none`, `bridge.Process.noArt` | tiles ask again after 10 s and 1 minute, then it stands 10 minutes; the client's copy stands 1 s; expired entries are deleted when met |
+| Failed loads | `artStore.failed` | a tile retries after 2 s, doubling to 30 s; kept until it loads or 10 minutes pass |
+| Bridge `ArtIndex` (an `ITLibMediaItem` per track) | bridge | released after 120 s without an artwork request, reloaded in about 0.5 s. A failed or empty reload is tried again after 5 s; until then covers come from Music. |
 
 The art folder, the lyrics folder and the snapshot leftovers are cleaned by a
 goroutine at start (`internal/cachegc`), never on the UI goroutine.

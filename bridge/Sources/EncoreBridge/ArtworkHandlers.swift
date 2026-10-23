@@ -50,12 +50,27 @@ enum ArtworkHandlers {
   }
 
   /// Encoded image bytes for a track or album pid and where they came from ("itlib"
-  /// or "ae"). nil data means the item has no artwork.
+  /// or "ae"). nil data means the item has no artwork. Throws when that can't be
+  /// told yet (see `cannotTell`), so the caller asks again instead of taking it for
+  /// "no artwork".
   static func imageData(_ pid: String, _ index: ArtIndex, _ server: Server, _ music: MusicAE) throws -> (Data?, String) {
     if let data = index.imageData(pid) { return (data, "itlib") }
     // Music only knows tracks; an album's art is that of one of its tracks.
-    let track = LibraryIndex.shared.artTrack(forAlbum: pid) ?? pid
-    return (try server.music.sync { try music.artworkData(persistentID: track) }, "ae")
+    let mapped = LibraryIndex.shared.artTrack(forAlbum: pid)
+    let data = try server.music.sync { try music.artworkData(persistentID: mapped ?? pid) }
+    if cannotTell(found: data != nil, mapped: mapped != nil, hasSnapshot: LibraryIndex.shared.hasSnapshot) {
+      throw Server.BridgeError.internalError("the library hasn't been read yet, so \(pid) can't be told from an album; try again")
+    }
+    return (data, "ae")
+  }
+
+  /// Whether Music's "nothing" for a pid is no answer yet. Before the first snapshot
+  /// an album pid can't be mapped to a track, and Music says "no such track", which
+  /// looks like an album without artwork and, kept, leaves its tile blank until the
+  /// answer expires. After a snapshot a pid that isn't an album's is a track's, and
+  /// Music's answer stands.
+  static func cannotTell(found: Bool, mapped: Bool, hasSnapshot: Bool) -> Bool {
+    !found && !mapped && !hasSnapshot
   }
 }
 

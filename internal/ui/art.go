@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"container/list"
 	"context"
+	"errors"
 	"image"
 	_ "image/jpeg" // artwork may arrive as JPEG
 	_ "image/png"
+	"io/fs"
 	"os"
 	"slices"
 	"strconv"
@@ -50,11 +52,18 @@ const (
 	// each other on every frame.
 	maxTileImages = 64
 
-	artWorkers    = 4
-	artQueueMax   = 96 // requests from older frames are dropped; art still on screen asks again
-	tileCacheMax  = 512
-	heroSizesMax  = 256 // hero and tile-image sizes
-	artRetryAfter = 30 * time.Second
+	artWorkers   = 4
+	artQueueMax  = 96 // requests from older frames are dropped; art still on screen asks again
+	tileCacheMax = 512
+	heroSizesMax = 256 // hero and tile-image sizes
+	// artRetryAfter is the longest wait before a failed tile load is tried
+	// again. The first retry comes after tileRetryFirst and each further
+	// failure doubles the wait: a bridge that was slow or busy a moment ago
+	// (the artwork index reloading, Music answering one cover at a time) has
+	// usually recovered by then, and the tile must not stay blank for half a
+	// minute.
+	artRetryAfter  = 30 * time.Second
+	tileRetryFirst = 2 * time.Second
 	// heroRetryAfter is artRetryAfter for hero art. Music can be slow to
 	// answer while tracks are skipped quickly, and the player bar should
 	// not stay empty for half a minute after one timeout.
@@ -78,10 +87,21 @@ const (
 	nowArtHold = 4 * time.Second
 
 	// noneTTL is how long Music's answer that a pid has no artwork stands.
-	// Tiles take the first answer, and a hero that was told so
-	// heroNoneTries times counts as having none; after this they ask again,
-	// and the entry no longer sits in the map for the rest of the session.
+	// A hero that was told so heroNoneTries times counts as having none, and
+	// a tile that was told so tileNoneTries times does; after this they ask
+	// again, and the entry no longer sits in the map for the rest of the
+	// session.
 	noneTTL = 10 * time.Minute
+
+	// A "no artwork" answer for a grid tile is asked again after
+	// tileNoneRetry, then after tileNoneRetryLater, and then it stands for
+	// noneTTL. Most albums that really have no cover say so three times for
+	// two cheap requests. An answer that was only the bridge not being
+	// ready (the library index reloading, Music busy) gets corrected, and
+	// the tile does not stay blank for ten minutes.
+	tileNoneRetry      = 10 * time.Second
+	tileNoneRetryLater = time.Minute
+	tileNoneTries      = 3
 )
 
 // TileKeyPrefix starts the renderer key of every grid tile's image. Inside
@@ -124,6 +144,37 @@ type noArt struct {
 	n  int
 }
 
+// tileRetry is how long after the last answer a grid tile asks again.
+func (e noArt) tileRetry() time.Duration {
+	switch {
+	case e.n <= 1:
+		return tileNoneRetry
+	case e.n < tileNoneTries:
+		return tileNoneRetryLater
+	}
+	return noneTTL
+}
+
+// failure is when a load failed, and how many times in a row.
+type failure struct {
+	at time.Time
+	n  int
+}
+
+// retry is how long after the last failure the load is tried again: hero art
+// after heroRetryAfter, a tile after tileRetryFirst and then twice as long
+// for each failure, up to artRetryAfter.
+func (f failure) retry(hero bool) time.Duration {
+	if hero {
+		return heroRetryAfter
+	}
+	d := tileRetryFirst
+	for i := 1; i < f.n && d < artRetryAfter; i++ {
+		d *= 2
+	}
+	return min(d, artRetryAfter)
+}
+
 // retry is how long after the last answer hero art asks again.
 func (e noArt) retry() time.Duration {
 	d := heroNoneRetry
@@ -164,7 +215,7 @@ type artStore struct {
 	tiles    *lruCache[artSize, string]
 	prepared *lruCache[artSize, bool] // hero sizes Prepare has run for
 	none     map[string]noArt         // pids Music reported no artwork for
-	failed   map[artReq]time.Time
+	failed   map[artReq]failure
 	ready    chan struct{}
 	now      func() time.Time
 	// after runs f once d has passed (time.AfterFunc); wakeAt is the
@@ -196,7 +247,7 @@ func newArtStore(client bridge.Client, r *art.Renderer) *artStore {
 		tiles:     newLRUCache[artSize, string](tileCacheMax),
 		prepared:  newLRUCache[artSize, bool](heroSizesMax),
 		none:      map[string]noArt{},
-		failed:    map[artReq]time.Time{},
+		failed:    map[artReq]failure{},
 		composing: map[string]bool{},
 		playlists: map[string]plArtSpec{},
 		ready:     make(chan struct{}, 1),
@@ -346,13 +397,17 @@ func (s *artStore) frame() {
 // moment ago. It reports which.
 func (s *artStore) wantLocked(req artReq) artState {
 	if e, ok := s.none[req.pid]; ok {
+		age := s.now().Sub(e.at)
 		switch {
-		case s.now().Sub(e.at) > noneTTL:
+		case age > noneTTL:
 			delete(s.none, req.pid) // asked again below
 		case !req.hero:
-			return artMissing
+			if wait := e.tileRetry() - age; wait > 0 {
+				s.wakeLocked(wait)
+				return artMissing
+			}
 		default:
-			if wait := e.retry() - s.now().Sub(e.at); wait > 0 {
+			if wait := e.retry() - age; wait > 0 {
 				s.wakeLocked(wait)
 				if e.n >= heroNoneTries {
 					return artMissing
@@ -372,18 +427,15 @@ func (s *artStore) wantLocked(req artReq) artState {
 		}
 		return artLoading
 	}
-	retry := artRetryAfter
-	if req.hero {
-		retry = heroRetryAfter
-	}
-	if at, ok := s.failed[req]; ok {
-		if wait := retry - s.now().Sub(at); wait > 0 {
-			if req.hero {
-				s.wakeLocked(wait)
-			}
+	if f, ok := s.failed[req]; ok {
+		switch wait := f.retry(req.hero) - s.now().Sub(f.at); {
+		case s.now().Sub(f.at) > noneTTL:
+			delete(s.failed, req) // long ago: start over
+		case wait > 0:
+			s.wakeLocked(wait)
 			return artWaiting
 		}
-		delete(s.failed, req) // time to try again
+		// time to try again; the entry stays to count the next failure
 	}
 	if !s.started {
 		s.started = true
@@ -504,24 +556,28 @@ func (s *artStore) work() {
 		sz := artSize{req.key, req.w, req.h}
 		switch {
 		case err != nil:
-			s.failed[req] = s.now()
-			artf("failed %v in %v: %v", req, took, err)
-			if req.hero {
-				s.wakeLocked(heroRetryAfter)
-			}
+			s.failed[req] = failure{at: s.now(), n: s.failed[req].n + 1}
+			artf("failed %v in %v: %v (next in %v)", req, took, err, s.failed[req].retry(req.hero))
+			s.wakeLocked(s.failed[req].retry(req.hero))
 		case none:
 			e := noArt{at: s.now(), n: s.none[req.pid].n + 1}
 			s.none[req.pid] = e
-			artf("none %v in %v (answer %d, next in %v)", req, took, e.n, e.retry())
 			if req.hero {
+				artf("none %v in %v (answer %d, next in %v)", req, took, e.n, e.retry())
 				s.wakeLocked(e.retry())
+			} else {
+				artf("none %v in %v (answer %d, next in %v)", req, took, e.n, e.tileRetry())
+				s.wakeLocked(e.tileRetry())
 			}
 		case req.hero:
 			s.prepared.put(sz, true)
 			delete(s.none, req.pid) // Music had it after all
+			delete(s.failed, req)
 			artf("done %v in %v", req, took)
 		default:
 			artf("done %v in %v", req, took)
+			delete(s.none, req.pid) // Music had it after all
+			delete(s.failed, req)
 			if tile != "" {
 				s.tiles.put(sz, tile)
 			}
@@ -578,19 +634,27 @@ func (s *artStore) load(req artReq) (tile string, none bool, err error) {
 	return art.Blocks(img, req.w, req.h), false, nil
 }
 
-// loadBridge fetches pid's artwork at px through the bridge.
+// loadBridge fetches pid's artwork at px through the bridge. The client hands
+// back a file in the cache folder, which the folder's trimming (or anything
+// else) may have removed before it is read: the answer then comes again, and
+// the client writes the file anew.
 func (s *artStore) loadBridge(pid string, px int) (data []byte, none bool, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), bridge.ArtworkTimeout)
-	a, err := s.client.Artwork(ctx, pid, px)
-	cancel()
-	if err != nil {
-		return nil, false, err
+	for attempt := 0; ; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), bridge.ArtworkTimeout)
+		a, err := s.client.Artwork(ctx, pid, px)
+		cancel()
+		if err != nil {
+			return nil, false, err
+		}
+		if a.Path == "" {
+			return nil, true, nil
+		}
+		data, err = os.ReadFile(a.Path)
+		if err == nil || attempt > 0 || !errors.Is(err, fs.ErrNotExist) {
+			return data, false, err
+		}
+		artf("artwork file %s is gone, asking again", a.Path)
 	}
-	if a.Path == "" {
-		return nil, true, nil
-	}
-	data, err = os.ReadFile(a.Path)
-	return data, false, err
 }
 
 // compose builds a row composite (see Ctx.TileRow) in the background and
