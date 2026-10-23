@@ -11,15 +11,20 @@ all: build
 # for ad-hoc code is undocumented; see docs/design.md.
 BRIDGE_ID := io.github.bogdankim.encore.bridge
 
-# strip -S drops the debug map, which holds this checkout's absolute paths.
+# The helper is universal (arm64 + x86_64), so the one embedded copy runs on
+# every Mac. strip -S drops the debug map, which holds this checkout's
+# absolute paths.
+BRIDGE_ARCHS := --arch arm64 --arch x86_64
+BRIDGE_BIN = $$(cd bridge && swift build -c release $(BRIDGE_ARCHS) --show-bin-path)/encore-bridge
+
 bridge:
-	cd bridge && swift build -c release --arch arm64
-	strip -S "$$(cd bridge && swift build -c release --arch arm64 --show-bin-path)/encore-bridge"
+	cd bridge && swift build -c release $(BRIDGE_ARCHS)
+	strip -S "$(BRIDGE_BIN)"
 	codesign --sign - --identifier $(BRIDGE_ID) \
 		--requirements '=designated => identifier "$(BRIDGE_ID)"' \
-		--force "$$(cd bridge && swift build -c release --arch arm64 --show-bin-path)/encore-bridge"
+		--force "$(BRIDGE_BIN)"
 	mkdir -p internal/bridge/embed
-	cp "$$(cd bridge && swift build -c release --arch arm64 --show-bin-path)/encore-bridge" internal/bridge/embed/encore-bridge
+	cp "$(BRIDGE_BIN)" internal/bridge/embed/encore-bridge
 
 # The version printed by encore --version. A release sets it explicitly:
 # make dist VERSION=0.1.0. Otherwise it comes from git, minus a leading "v".
@@ -43,18 +48,28 @@ install: build
 	mkdir -p $(HOME)/.local/bin
 	install -m 0755 bin/encore $(HOME)/.local/bin/encore
 
-# A release tarball with the binary, LICENSE and README.md, for the Homebrew
-# formula. -trimpath keeps local file paths out of the binary.
-DIST_NAME := encore-$(VERSION)-darwin-arm64
+# A release tarball with a universal binary (arm64 + x86_64), LICENSE and
+# README.md, for the Homebrew formula. -trimpath keeps local file paths out of
+# the binary. Both halves link with cgo, so the x86_64 one needs clang told
+# its target, and MACOSX_DEPLOYMENT_TARGET keeps the minimum macOS at 14, the
+# helper's (clang would otherwise stamp the SDK's version).
+DIST_NAME := encore-$(VERSION)-darwin-universal
+DIST_DIR := dist/$(DIST_NAME)
 
 dist: bridge
-	rm -rf dist/$(DIST_NAME) dist/$(DIST_NAME).tar.gz
-	mkdir -p dist/$(DIST_NAME)
-	GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w $(LDFLAGS)" -o dist/$(DIST_NAME)/encore ./cmd/encore
-	cp LICENSE README.md dist/$(DIST_NAME)/
-	COPYFILE_DISABLE=1 tar -C dist/$(DIST_NAME) -czf dist/$(DIST_NAME).tar.gz encore LICENSE README.md
-	rm -rf dist/$(DIST_NAME)
-	@shasum -a 256 dist/$(DIST_NAME).tar.gz
+	rm -rf $(DIST_DIR) $(DIST_DIR).tar.gz
+	mkdir -p $(DIST_DIR)
+	MACOSX_DEPLOYMENT_TARGET=14.0 CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 CC="clang -arch arm64" \
+		go build -trimpath -ldflags "-s -w $(LDFLAGS)" -o $(DIST_DIR)/encore-arm64 ./cmd/encore
+	MACOSX_DEPLOYMENT_TARGET=14.0 CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" \
+		go build -trimpath -ldflags "-s -w $(LDFLAGS)" -o $(DIST_DIR)/encore-amd64 ./cmd/encore
+	lipo -create -output $(DIST_DIR)/encore $(DIST_DIR)/encore-arm64 $(DIST_DIR)/encore-amd64
+	rm $(DIST_DIR)/encore-arm64 $(DIST_DIR)/encore-amd64
+	codesign --sign - --force $(DIST_DIR)/encore
+	cp LICENSE README.md $(DIST_DIR)/
+	COPYFILE_DISABLE=1 tar -C $(DIST_DIR) -czf $(DIST_DIR).tar.gz encore LICENSE README.md
+	rm -rf $(DIST_DIR)
+	@shasum -a 256 $(DIST_DIR).tar.gz
 
 clean:
 	rm -rf bin dist bridge/.build internal/bridge/embed/encore-bridge

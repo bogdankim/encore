@@ -8,7 +8,7 @@
 A fast terminal client for Apple Music on macOS.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![macOS 14+ on Apple silicon](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20silicon-111111?logo=apple&logoColor=white)](#install)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111111?logo=apple&logoColor=white)](#install)
 [![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Homebrew](https://img.shields.io/badge/brew-bogdankim%2Ftap%2Fencore-FBB040?logo=homebrew&logoColor=white)](#homebrew)
 
@@ -53,7 +53,7 @@ The lyrics screenshot uses the built-in demo library (`encore --demo`), so its n
 
 ## Install
 
-encore needs macOS 14 or later on Apple silicon, and Music.app. I test it on macOS 27 with Music 1.7.
+encore needs macOS 14 or later and Music.app. The release runs on Apple silicon and Intel. I test it on macOS 27 with Music 1.7 on Apple silicon; Intel and older macOS versions should work but get less testing.
 
 ### Homebrew
 

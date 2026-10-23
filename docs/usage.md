@@ -344,4 +344,4 @@ encore sets a soft limit of 100 MB on Go's heap and raises it by itself for a ve
 - encore can't add to your library: Music doesn't let another app do it. Apple Music songs, albums and playlists open in Music.app (`M`), and you add them there with its + button.
 - Home is a copy of what Music last showed. Shelves don't change until you open Home in Music again, though live stations update the show on air.
 - Apple's playlists and mixes open in Music.app instead of playing from encore, and Music comes to the front when they do.
-- macOS only, arm64 only.
+- macOS only. Releases are universal (Apple silicon and Intel); Intel gets less testing.
