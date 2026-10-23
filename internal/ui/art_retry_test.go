@@ -361,3 +361,107 @@ func TestArtArrivingDuringARepeatShowsAtTheFlush(t *testing.T) {
 		t.Fatalf("%d tile images after the flush, want the loaded tiles", n)
 	}
 }
+
+// Art asked for ahead of need queues behind everything on screen, in any
+// frame, and does not wake the UI when it arrives; the screen asking for the
+// same art raises it.
+func TestPrefetchQueuesBehindTheScreenAndStaysQuiet(t *testing.T) {
+	cl := &scriptedClient{steps: []func() (bridge.Artwork, error){stepNone}}
+	s := newArtStore(cl, art.NewRenderer(art.Options{Protocol: art.ProtoBlocks}))
+	s.started = true // no workers: the queue is inspected by hand
+	s.frame()
+	s.prefetch("ahead", "p1", 10, 5)
+	s.block("shown", "p2", 10, 5, ArtTile)
+	s.prefetch("ahead2", "p3", 10, 5)
+	s.block("shown2", "p4", 10, 5, ArtTile)
+	var order []string
+	for len(s.queue) > 0 {
+		i := s.firstLocked()
+		order = append(order, s.queue[i].req.key)
+		s.queue = append(s.queue[:i], s.queue[i+1:]...)
+	}
+	want := []string{"shown", "shown2", "ahead", "ahead2"}
+	if fmt.Sprint(order) != fmt.Sprint(want) {
+		t.Fatalf("served in the order %v, want %v", order, want)
+	}
+
+	// the screen asking for prefetched art raises it
+	s.busy, s.lowBusy = map[artReq]bool{}, map[artReq]bool{}
+	s.prefetch("a", "p5", 10, 5)
+	req := artReq{key: "a", pid: "p5", w: 10, h: 5}
+	if !s.lowBusy[req] {
+		t.Fatal("a prefetch is not low priority")
+	}
+	s.frame()
+	s.block("a", "p5", 10, 5, ArtTile)
+	if s.lowBusy[req] || s.queue[0].low {
+		t.Fatal("a tile on screen stayed low priority")
+	}
+}
+
+func TestPrefetchedCoverLoadsWithoutWakingTheUI(t *testing.T) {
+	cover := writeCover(t)
+	s, _, _ := newScriptedStore(t, func() (bridge.Artwork, error) { return bridge.Artwork{Path: cover, W: 32, H: 32}, nil })
+	s.prefetch("k", "pid", 10, 5)
+	s.idle(t)
+	time.Sleep(20 * time.Millisecond)
+	select {
+	case <-s.ready:
+		t.Fatal("a prefetched cover woke the UI")
+	default:
+	}
+	if _, ok := s.block("k", "pid", 10, 5, ArtTile); !ok {
+		t.Fatal("the prefetched cover was not kept")
+	}
+	// the same cover asked for from the screen wakes it
+	s.block("k2", "pid2", 10, 5, ArtTile)
+	s.idle(t)
+	select {
+	case <-s.ready:
+	case <-time.After(time.Second):
+		t.Fatal("a cover on screen did not wake the UI")
+	}
+}
+
+// A settled album grid loads the covers of the rows above and below the
+// visible ones, so scrolling a row finds them ready; while it scrolls fast
+// it asks for none.
+func TestGridPrefetchesRowsBeyondTheEdges(t *testing.T) {
+	t.Setenv("TMUX", "")
+	a := newArtApp(t, art.ProtoIIP, 140, 42)
+	a.nav.open(a.section(KeyRecent))
+	a.View()
+	g := albumGridOf(t, a)
+	per := g.geo.cols
+	rows := g.rowsVisible()
+	if g.totalRows() < rows+2*gridPrefetchRows+2 {
+		t.Skip("the fake library is too small for the grid to have rows beyond its edges")
+	}
+	// scroll down so there are rows above and below
+	for range rows + 2 {
+		g.moveRows(1)
+	}
+	a.art.idle(t)
+	a.View()
+	first := (g.top + rows) * per // the first tile below the visible rows (a partly visible row aside)
+	beyond := g.items[first+per : min(first+2*per, len(g.items))]
+	waitFor(t, func() bool {
+		a.art.idle(t)
+		for _, al := range beyond {
+			if !a.art.r.Ready(tileImageKey(al.Key), g.geo.tileW, g.geo.artH) {
+				a.View()
+				return false
+			}
+		}
+		return true
+	})
+}
+
+func albumGridOf(t *testing.T, a *App) *AlbumGrid {
+	t.Helper()
+	v, ok := a.nav.cur.(*AlbumsView)
+	if !ok {
+		t.Fatalf("view is %T, want the albums view", a.nav.cur)
+	}
+	return &v.grid
+}

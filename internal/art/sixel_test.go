@@ -197,7 +197,7 @@ func TestSixelMeasure(t *testing.T) {
 		}
 		for _, px := range [][2]int{{240, 240}, {320, 320}} {
 			box := resample(m, coverRect(m.Bounds(), px[0], px[1]), px[0], px[1]).nrgba()
-			j, _ := encodeImage(box)
+			j, _ := encodeImage(box, DefaultQuality)
 			jm, _, _ := image.Decode(bytes.NewReader(j))
 			fmt.Printf("%s %dx%d iip-jpeg %6d B base64 (%.1f dB)\n", filepath.Base(f), px[0], px[1], (len(j)+2)/3*4, psnr(box, toNRGBA(jm)))
 			for _, v := range []struct {

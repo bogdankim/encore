@@ -53,9 +53,13 @@ func TestGridTilesSurviveEvictedImages(t *testing.T) {
 		a.View()
 		return len(tilePlaces(a)) >= 10
 	})
-	// let the rest of the visible tiles and the player bar finish
-	time.Sleep(100 * time.Millisecond)
-	a.View()
+	// let the rest of the visible tiles, the rows prefetched beyond them and
+	// the player bar finish
+	for range 3 {
+		a.art.idle(t)
+		a.View()
+	}
+	a.art.idle(t)
 	// A tile cut off by the grid's edge is cut from the decoded image, so it
 	// goes back to half blocks until that is loaded again. The others don't.
 	whole := func() (keys []string, cut int) {

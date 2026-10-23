@@ -78,3 +78,37 @@ func TestPayloadBudget(t *testing.T) {
 		t.Fatalf("payload cache holds %d bytes in %d entries, budget %d", c.used, c.len(), payloadsBudget)
 	}
 }
+
+// Images under a prefix with its own JPEG quality are encoded at it, the
+// rest at DefaultQuality, and setting it re-encodes what was kept.
+func TestQualityPerPrefix(t *testing.T) {
+	r := NewRenderer(Options{Protocol: ProtoIIP, Cell: CellSize{W: 20, H: 42}})
+	data := pngBytes(t, testArt(256, 256))
+	size := func(key string) int {
+		if err := r.Prepare(key, data, 10, 5); err != nil {
+			t.Fatal(err)
+		}
+		p, ok := r.cachedPayload(pieceKey{boxKey{key, 10, 5}, rect{0, 0, 10, 5}, r.cell})
+		if !ok {
+			t.Fatalf("no payload for %s", key)
+		}
+		return len(p)
+	}
+	plain := size("tile:a")
+	hero := size("hero")
+	r.Quality("tile:", 30)
+	if r.Ready("tile:a", 10, 5) {
+		t.Fatal("a quality change kept the payload encoded at the old one")
+	}
+	low := size("tile:a")
+	if low >= plain {
+		t.Fatalf("quality 30 gave %d bytes, quality %d gave %d", low, DefaultQuality, plain)
+	}
+	if got := size("hero"); got != hero {
+		t.Fatalf("a tile quality changed the other images: %d bytes, was %d", got, hero)
+	}
+	r.Quality("tile:", 0)
+	if got := size("tile:a"); got != plain {
+		t.Fatalf("removing the quality gave %d bytes, want %d", got, plain)
+	}
+}

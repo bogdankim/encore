@@ -56,17 +56,18 @@ type Renderer struct {
 	width     int
 	height    int
 
-	images   *lru[string, image.Image]
-	blocks   *lru[boxKey, string]
-	boxes    *lru[boxKey, *image.NRGBA] // IIP: the image scaled to its box
-	sixels   *lru[boxKey, *sixelImage]  // sixel: the box reduced to a palette
-	payloads *lru[pieceKey, []byte]     // IIP: encoded pieces
-	kittyIDs *lru[boxKey, uint32]
-	limits   []limit             // per-key-prefix pixel caps, see Limit
-	composed map[string]CellSize // composites in images, and the cell size they were built for
-	encoding map[pieceKey]bool   // sixel images being encoded in the background
-	nextID   uint32
-	oob      strings.Builder // pending out-of-band output (kitty)
+	images    *lru[string, image.Image]
+	blocks    *lru[boxKey, string]
+	boxes     *lru[boxKey, *image.NRGBA] // IIP: the image scaled to its box
+	sixels    *lru[boxKey, *sixelImage]  // sixel: the box reduced to a palette
+	payloads  *lru[pieceKey, []byte]     // IIP: encoded pieces
+	kittyIDs  *lru[boxKey, uint32]
+	limits    []limit             // per-key-prefix pixel caps, see Limit
+	qualities []limit             // per-key-prefix JPEG qualities, see Quality
+	composed  map[string]CellSize // composites in images, and the cell size they were built for
+	encoding  map[pieceKey]bool   // sixel images being encoded in the background
+	nextID    uint32
+	oob       strings.Builder // pending out-of-band output (kitty)
 
 	// The frame being built, and the last committed one.
 	places []placement
@@ -312,6 +313,42 @@ func (r *Renderer) Limit(prefix string, px int) {
 		r.limits = append(r.limits, limit{prefix, px})
 	}
 	r.resetScaledLocked()
+}
+
+// Quality sets the JPEG quality (1 to 100) of the images whose key starts with
+// prefix, in place of DefaultQuality; q <= 0 removes it. The longest matching
+// prefix wins. Grid tiles take a lower one: each is re-sent whenever the grid
+// scrolls a row, so their bytes are what a scroll costs the terminal, and a
+// small image shown over many pixels hides the difference. Images are
+// re-encoded for it.
+func (r *Renderer) Quality(prefix string, q int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	i := slices.IndexFunc(r.qualities, func(l limit) bool { return l.prefix == prefix })
+	switch {
+	case i >= 0 && r.qualities[i].px == q:
+		return
+	case i >= 0 && q <= 0:
+		r.qualities = slices.Delete(r.qualities, i, i+1)
+	case i >= 0:
+		r.qualities[i].px = q
+	case q <= 0:
+		return
+	default:
+		r.qualities = append(r.qualities, limit{prefix, q})
+	}
+	r.resetScaledLocked()
+}
+
+// qualityLocked returns the JPEG quality for key.
+func (r *Renderer) qualityLocked(key string) int {
+	q, best := DefaultQuality, -1
+	for _, l := range r.qualities {
+		if len(l.prefix) > best && strings.HasPrefix(key, l.prefix) {
+			q, best = l.px, len(l.prefix)
+		}
+	}
+	return q
 }
 
 // limitLocked returns the pixel cap for key, or 0 for none.
@@ -1112,6 +1149,7 @@ func (r *Renderer) payload(pk pieceKey, m image.Image) ([]byte, error) {
 	data, ok := r.payloads.get(pk)
 	box, hasBox := r.boxes.get(pk.box)
 	maxPx := r.limitLocked(pk.box.key)
+	quality := r.qualityLocked(pk.box.key)
 	r.mu.Unlock()
 	if ok {
 		return data, nil
@@ -1133,7 +1171,7 @@ func (r *Renderer) payload(pk pieceKey, m image.Image) ([]byte, error) {
 		draw.Draw(c, c.Bounds(), box, px.Min, draw.Src)
 		sub = c
 	}
-	data, err := encodeImage(sub)
+	data, err := encodeImage(sub, quality)
 	if err != nil {
 		return nil, err
 	}

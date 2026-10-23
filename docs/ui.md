@@ -299,15 +299,20 @@ the same answer, and is left out once the search found no match.
 failed) and what the now-playing art shows and why to
 `~/Library/Logs/encore/art.log`.
 Grid tiles (`Ctx.TileArt`) are images too on iTerm2-protocol terminals, fetched
-at 256 px and at most 64 per frame. The renderer keeps the encoded payload of
+at 256 px, sent as JPEG at quality 80 (`tileImageQuality`; a scroll by a row
+sends every visible tile again, 15 of them, about 125 KB) and at most 64 per frame.
+A settled grid also loads the covers of the two rows above and below the visible
+ones (`AlbumGrid.prefetch`, `artStore.prefetch`): they queue behind everything on
+screen and don't redraw the UI, so a tap that scrolls a row finds them loaded. The renderer keeps the encoded payload of
 every tile it has drawn, up to 8 MB (about 700 tiles), and `artStore.tileImage`
 counts a tile as ready while its payload is kept, so scrolling back over covers
 decodes and loads nothing. The decoded image (96 of them, 48 MB at most) is only
 needed to cut a piece from a tile the grid's edge or an overlay crops, so such a
 tile passes `decoded` and reloads when the image is gone. Inside
 tmux on WezTerm and iTerm2 every image goes through passthrough as an iTerm2
-image; with `art = "sixel"` each tile row is one sixel image (`Ctx.TileRow`). Elsewhere, while a tile loads, and while the grid is scrolling fast (a
-scroll step within 150 ms of the last one) they are half blocks; images come back
+image; with `art = "sixel"` each tile row is one sixel image (`Ctx.TileRow`). Elsewhere, while a tile loads, and while the grid is scrolling fast (the
+second scroll step in a row within 150 ms of the one before; a tap, or two quick
+ones, keeps the images) they are half blocks; images come back
 150 ms after scrolling stops. A tile cut off at the bottom of its grid is cropped
 with covers just above its layer, and the hover play badge covers its cells with
 `Ctx.CoverArt`. Overlay rectangles are recorded before the frame under them is

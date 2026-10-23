@@ -37,6 +37,11 @@ const (
 	// wheel step re-sends each one; the terminal scales it up just as well.
 	// Sixel images can't be scaled by the terminal and ignore the cap.
 	tileImageMaxPx = 240
+	// tileImageQuality is the JPEG quality of tile images. Every one on
+	// screen is sent again when the grid scrolls a row (15 of them, about
+	// 170 KB at quality 90), and shown over twice their pixels a lower quality
+	// is not visible: 80 is a third smaller.
+	tileImageQuality = 80
 	// heroArtPx is the size fetched for the player bar and page headers.
 	heroArtPx = 600
 
@@ -131,6 +136,9 @@ type artReq struct {
 type artJob struct {
 	req      artReq
 	gen, seq uint64
+	// low: asked for ahead of need (see prefetch), served after everything
+	// on screen in its frame.
+	low bool
 }
 
 type artSize struct {
@@ -212,6 +220,7 @@ type artStore struct {
 	queue    []artJob
 	gen, seq uint64 // frame and request counters for queue order
 	busy     map[artReq]bool
+	lowBusy  map[artReq]bool // busy loads nothing on screen has asked for yet
 	tiles    *lruCache[artSize, string]
 	prepared *lruCache[artSize, bool] // hero sizes Prepare has run for
 	none     map[string]noArt         // pids Music reported no artwork for
@@ -244,6 +253,7 @@ func newArtStore(client bridge.Client, r *art.Renderer) *artStore {
 		client:    client,
 		r:         r,
 		busy:      map[artReq]bool{},
+		lowBusy:   map[artReq]bool{},
 		tiles:     newLRUCache[artSize, string](tileCacheMax),
 		prepared:  newLRUCache[artSize, bool](heroSizesMax),
 		none:      map[string]noArt{},
@@ -259,6 +269,7 @@ func newArtStore(client bridge.Client, r *art.Renderer) *artStore {
 	s.cond = sync.NewCond(&s.mu)
 	if s.tileImages {
 		r.Limit(tileImageKey(""), tileImageMaxPx)
+		r.Quality(tileImageKey(""), tileImageQuality)
 		if n := r.ImageLimit(); n > 0 {
 			s.rowBudget = max(n-heroImages, 0)
 			s.rowImages = true
@@ -318,6 +329,26 @@ func (s *artStore) tileImage(key, pid string, w, h int, decoded bool) bool {
 	}
 	s.wantLocked(artReq{key: key, pid: pid, w: w, h: h})
 	return false
+}
+
+// prefetch asks for the image of tile key at w×h before the tile is on
+// screen (the rows just beyond a grid's edge), so a scroll by a row finds the
+// covers loaded. It queues behind everything on screen and does not redraw
+// the UI when it is done.
+func (s *artStore) prefetch(key, pid string, w, h int) {
+	if s == nil || s.r == nil || s.r.Protocol() == art.ProtoOff || key == "" || pid == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.tileImages {
+		if s.r.Ready(tileImageKey(key), w, h) {
+			return
+		}
+	} else if _, ok := s.tiles.get(artSize{key, w, h}); ok {
+		return
+	}
+	s.want(artReq{key: key, pid: pid, w: w, h: h}, true)
 }
 
 // heroReady reports whether hero art for key is ready to draw at w×h.
@@ -395,7 +426,13 @@ func (s *artStore) frame() {
 // wantLocked asks for req: it queues a load unless one is queued or under
 // way, Music said a moment ago there is none, or the last load failed a
 // moment ago. It reports which.
-func (s *artStore) wantLocked(req artReq) artState {
+func (s *artStore) wantLocked(req artReq) artState { return s.want(req, false) }
+
+// want is wantLocked for a request that may be low priority: asked ahead of
+// need, it queues behind every request for what is on screen, and the UI is
+// not redrawn when it is done. A request for the same art from the screen
+// raises it.
+func (s *artStore) want(req artReq, low bool) artState {
 	if e, ok := s.none[req.pid]; ok {
 		age := s.now().Sub(e.at)
 		switch {
@@ -419,9 +456,13 @@ func (s *artStore) wantLocked(req artReq) artState {
 	s.seq++
 	if s.busy[req] {
 		// asked for again: move it up to this frame's place
+		if !low {
+			delete(s.lowBusy, req)
+		}
 		for i := range s.queue {
 			if s.queue[i].req == req {
 				s.queue[i].gen, s.queue[i].seq = s.gen, s.seq
+				s.queue[i].low = s.queue[i].low && low
 				break
 			}
 		}
@@ -444,12 +485,16 @@ func (s *artStore) wantLocked(req artReq) artState {
 		}
 	}
 	s.busy[req] = true
-	s.queue = append(s.queue, artJob{req, s.gen, s.seq})
-	artf("queue %v frame %d", req, s.gen)
+	if low {
+		s.lowBusy[req] = true
+	}
+	s.queue = append(s.queue, artJob{req, s.gen, s.seq, low})
+	artf("queue %v frame %d low=%v", req, s.gen, low)
 	if len(s.queue) > artQueueMax {
 		i := s.lastLocked()
 		artf("drop %v (queue full)", s.queue[i].req)
 		delete(s.busy, s.queue[i].req)
+		delete(s.lowBusy, s.queue[i].req)
 		s.queue = slices.Delete(s.queue, i, i+1)
 	}
 	s.cond.Signal()
@@ -457,14 +502,18 @@ func (s *artStore) wantLocked(req artReq) artState {
 }
 
 // before reports whether job a is served before job b: the latest frame's
-// first, hero art (the player bar, a page header) ahead of grid tiles, then
-// in the order the frame asked.
+// first, hero art (the player bar, a page header) ahead of grid tiles, art
+// on screen ahead of art asked for ahead of need, then in the order the frame
+// asked.
 func (a artJob) before(b artJob) bool {
 	if a.gen != b.gen {
 		return a.gen > b.gen
 	}
 	if a.req.hero != b.req.hero {
 		return a.req.hero
+	}
+	if a.low != b.low {
+		return b.low
 	}
 	return a.seq < b.seq
 }
@@ -553,6 +602,8 @@ func (s *artStore) work() {
 
 		s.mu.Lock()
 		delete(s.busy, req)
+		quiet := s.lowBusy[req] // nothing on screen waits for it
+		delete(s.lowBusy, req)
 		sz := artSize{req.key, req.w, req.h}
 		switch {
 		case err != nil:
@@ -583,7 +634,7 @@ func (s *artStore) work() {
 			}
 		}
 		s.mu.Unlock()
-		if err == nil && !none {
+		if err == nil && !none && !quiet {
 			s.poke()
 		}
 	}
@@ -826,6 +877,14 @@ func (c *Ctx) TileArt(key, pid string, x, y, w, h, vis int, crisp bool) string {
 		}
 	}
 	return c.Host.Art(key, pid, w, h, ArtTile)
+}
+
+// PrefetchTile loads the art of a grid tile that is not on screen yet, w×h
+// cells, at a low priority.
+func (c *Ctx) PrefetchTile(key, pid string, w, h int) {
+	if a, ok := c.Host.(*App); ok && w > 0 && h > 0 {
+		a.art.prefetch(key, pid, w, h)
+	}
 }
 
 // RowTile is a tile in a row passed to Ctx.TileRow.

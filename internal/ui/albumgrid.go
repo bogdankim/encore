@@ -126,11 +126,18 @@ type AlbumGrid struct {
 	w, h int
 	geo  gridGeom
 	// scrolledAt is when the grid last scrolled. A scroll that follows
-	// another within scrollSettle is fast scrolling: it sets fastAt, and
-	// tiles are half blocks until scrollSettle after it, because every step
-	// would otherwise send each visible tile's image again.
+	// another within scrollSettle is part of a run, and from its scrollRun-th
+	// quick step on it is fast scrolling: it sets fastAt, and tiles are half
+	// blocks until scrollSettle after it, because every step would otherwise
+	// send each visible tile's image again. A tap, or two quick ones, keeps
+	// the images.
 	scrolledAt, fastAt time.Time
+	quick              int // quick steps in a row
 }
+
+// scrollRun is how many steps in a row, each within scrollSettle of the one
+// before, make scrolling fast. Two taps in quick succession are not a hold.
+const scrollRun = 2
 
 // scrollSettle is how long the grid waits after a scroll before it swaps
 // half blocks for images.
@@ -292,9 +299,14 @@ func (g *AlbumGrid) scrolled(top int, c *Ctx) tea.Cmd {
 	if g.top == top || !g.gridMode() {
 		return nil
 	}
-	fast := !g.scrolledAt.IsZero() && c.Now.Sub(g.scrolledAt) < scrollSettle
+	quick := !g.scrolledAt.IsZero() && c.Now.Sub(g.scrolledAt) < scrollSettle
 	g.scrolledAt = c.Now
-	if !fast {
+	if !quick {
+		g.quick = 0
+		return nil
+	}
+	g.quick++
+	if g.quick < scrollRun {
 		return nil
 	}
 	g.fastAt = c.Now
@@ -647,7 +659,9 @@ func (g *AlbumGrid) renderTiles(c *Ctx) []string {
 		}
 		lines = append(lines, b.String())
 	}
+	last := g.top - 1
 	for r := g.top; len(lines) < th; r++ {
+		last = r
 		start := r * geo.cols
 		if start >= len(g.items) {
 			break
@@ -712,7 +726,38 @@ func (g *AlbumGrid) renderTiles(c *Ctx) []string {
 			}, len(row))
 		}
 	}
+	if crisp {
+		g.prefetch(c, last)
+	}
 	return lines
+}
+
+// gridPrefetchRows is how many rows above and below the visible ones get
+// their covers loaded ahead of a scroll.
+const gridPrefetchRows = 2
+
+// prefetch asks for the covers of the rows just beyond the visible ones (the
+// last is row last), so a tap that scrolls by a row finds them loaded. The
+// requests go behind everything on screen.
+func (g *AlbumGrid) prefetch(c *Ctx, last int) {
+	for _, r := range append(rowRange(g.top-gridPrefetchRows, g.top), rowRange(last+1, last+1+gridPrefetchRows)...) {
+		if r < 0 || r >= g.totalRows() {
+			continue
+		}
+		start := r * g.geo.cols
+		for _, a := range g.items[start:min(start+g.geo.cols, len(g.items))] {
+			c.PrefetchTile(a.Key, a.ArtPID, g.geo.tileW, g.geo.artH)
+		}
+	}
+}
+
+// rowRange is the rows from lo up to, not including, hi.
+func rowRange(lo, hi int) []int {
+	var rs []int
+	for r := lo; r < hi; r++ {
+		rs = append(rs, r)
+	}
+	return rs
 }
 
 // tileTitle writes a tile's title from l's current column to its end. With

@@ -826,6 +826,7 @@ after the last scroll.
 | View() with 200×60 terminal | 2 ms |
 | Play command → bridge send | same frame |
 | Holding `j` in the album grid (demo library, 169×52, pty harness) | 22 to 24% of a core once the covers are cached, 41% the first time through; wheel 18%; page down 13 to 18%. Before: 74%, 48%, 76% |
+| A tap on `j` that scrolls the album grid a row (real library, 140×42, pty harness, cold covers) | last image byte 25 ms, 125 KB, all 15 covers in the first frame. Before: 35 ms, 155 KB, 12 of 15 covers (with every cover warm: 23 ms, 177 KB). A tap that only moves the selection sends 0 to 200 bytes. |
 | Resident memory after scrolling the whole grid (demo library) | 96 MB, 78 MB once idle (it was 133 MB) |
 
 ## Testing

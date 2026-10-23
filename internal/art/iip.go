@@ -77,12 +77,15 @@ func pixelSize(cols, rows int, cell CellSize, limit int) (w, h int) {
 	return w, h
 }
 
+// DefaultQuality is the JPEG quality of images sent to the terminal.
+const DefaultQuality = 90
+
 // encodeImage encodes m for IIP: JPEG when opaque (album art, a fraction of
 // the PNG size), PNG when it has transparency.
-func encodeImage(m image.Image) ([]byte, error) {
+func encodeImage(m image.Image, quality int) ([]byte, error) {
 	var buf bytes.Buffer
 	if n, ok := m.(*image.NRGBA); ok && opaque(n) {
-		if err := jpeg.Encode(&buf, m, &jpeg.Options{Quality: 90}); err != nil {
+		if err := jpeg.Encode(&buf, m, &jpeg.Options{Quality: quality}); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil

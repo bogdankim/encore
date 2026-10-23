@@ -97,8 +97,12 @@ func TestGridFastScrollDefersImages(t *testing.T) {
 		t.Fatal("a single scroll step keeps images")
 	}
 	t1 := t0.Add(40 * time.Millisecond)
+	if cmd := wheel(t1); cmd != nil || !g.settled(t1) {
+		t.Fatal("a quick second step (a double tap) keeps images")
+	}
+	t1 = t1.Add(40 * time.Millisecond)
 	if cmd := wheel(t1); cmd == nil || g.settled(t1) {
-		t.Fatal("a quick second step switches to half blocks and asks for a redraw")
+		t.Fatal("a third quick step switches to half blocks and asks for a redraw")
 	}
 	if g.settled(t1.Add(scrollSettle - time.Millisecond)) {
 		t.Fatal("still settling")
