@@ -260,6 +260,16 @@ func TestGridScrollCarriesImages(t *testing.T) {
 					t.Errorf("%s: sent %d images, want at most %d", s.name, sent, s.max)
 				}
 			}
+			// a resize forgets what is on screen; scrolling goes on after it
+			term.mu.Lock()
+			term.vt.Resize(70, 26)
+			term.mu.Unlock()
+			term.send(tea.WindowSizeMsg{Width: 70, Height: 26})
+			gridCheck(t, term, m, "resize")
+			for _, d := range []gridScroll{1, 1, -1} {
+				term.send(d)
+				gridCheck(t, term, m, fmt.Sprintf("scroll %d after resize", d))
+			}
 		})
 	}
 }
