@@ -196,7 +196,9 @@ func run(demo bool) error {
 		FrameCap:       time.Second / 30, // while a key or the wheel repeats
 		OnInput:        mem.Touch,
 	})
-	opts := []tea.ProgramOption{tea.WithOutput(out)}
+	// 120 frames a second at most (60 by default): a frame goes out at the
+	// next tick after a key, so a tap waits half as long
+	opts := []tea.ProgramOption{tea.WithOutput(out), tea.WithFPS(120)}
 	if tmuxTrueColor(os.Getenv) {
 		opts = append(opts, tea.WithColorProfile(colorprofile.TrueColor))
 	}
