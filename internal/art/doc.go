@@ -98,6 +98,24 @@
 //
 // Cost: an image is re-sent only when its own cells were touched. Moving a
 // cursor in a list next to it, updating text on the same rows, or scrolling
-// those rows costs nothing; an image that moves (a grid scrolling) is sent
-// again at its new place.
+// those rows costs nothing.
+//
+// # Scrolling images in the terminal
+//
+// An image that moves (a grid scrolling a row) would be sent again at its
+// new place. Directly in a terminal that attaches images to cells (WezTerm,
+// iTerm2), inside a synchronized update, the Output scrolls them instead:
+// planScroll finds a vertical shift of rows that brings the new frame's
+// pieces in place (same image, same column, rows higher or lower), and the
+// Output writes DECSTBM, SU or SD and DECSTBM again ahead of Bubble Tea's
+// frame. Bubble Tea does not know the rows moved, so every scrolled row is
+// then written from the frame (only the stretches that differ from what the
+// scroll left there, see scrollPlan.shows), around the images that stay. Of
+// the new pieces only what the scroll did not bring is drawn: a row of tiles
+// that came into view, and the rest of a tile that was cut off at the bottom
+// before. A scroll that would cut an image in two is not planned (xterm.js
+// drops such an image), nor one over an image that holds still among the
+// rows, nor one in a frame that scrolls or clears the screen itself. Inside
+// tmux, tmux owns the screen and nothing is scrolled. ENCORE_IMAGE_SCROLL=off
+// turns it off.
 package art

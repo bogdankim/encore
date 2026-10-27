@@ -67,10 +67,17 @@ func (o *Output) Write(p []byte) (int, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.syncSize()
-	q := o.t.feed(p) // may skip the cells of images that stay
+	scroll := o.scrollFor(p) // before feed, which asks the Renderer what stays
+	q := o.t.feed(p)         // may skip the cells of images that stay
 	redo := o.t.takeRedo()
+	if scroll != "" && (o.t.dmg.all || len(o.t.dmg.scrolls) > 0) {
+		// the frame scrolled or cleared after all (a sequence the scan
+		// could not see): draw every image again
+		o.t.dmg.setAll()
+	}
 	if !o.t.alt {
 		o.t.dmg.reset()
+		o.r.forgetFrame()
 		return o.write(p, q)
 	}
 	ops := ""
@@ -79,6 +86,19 @@ func (o *Output) Write(p []byte) (int, error) {
 	}
 	ops += o.r.ops(&o.t.dmg)
 	o.t.dmg.reset()
+	o.r.shownFrame()
+	if scroll != "" {
+		buf := make([]byte, 0, len(q)+len(scroll)+len(ops))
+		buf = append(buf, q[:len(ssu)]...)
+		buf = append(buf, scroll...)
+		buf = append(buf, q[len(ssu):len(q)-len(esu)]...)
+		buf = append(buf, ops...)
+		buf = append(buf, esu...)
+		if _, err := o.w.Write(buf); err != nil {
+			return 0, err
+		}
+		return len(p), nil
+	}
 	if ops == "" {
 		return o.write(p, q)
 	}
@@ -98,6 +118,28 @@ func (o *Output) Write(p []byte) (int, error) {
 	}
 	_, err = io.WriteString(o.w, ansi.SetModeSynchronizedOutput+ops+ansi.ResetModeSynchronizedOutput)
 	return n, err
+}
+
+var ssu = []byte(ansi.SetModeSynchronizedOutput)
+
+// scrollFor plans a scroll of the images in the terminal for the frame p
+// and returns the sequence that does it, "" when there is none. It is
+// only done inside a synchronized update, so the scrolled screen is never
+// shown without the frame's text and images, with the tracker in a state
+// the sequence leaves alone, and when p scrolls or clears nothing itself.
+func (o *Output) scrollFor(p []byte) string {
+	t := o.t
+	if !t.alt || t.state != ansi.NormalState || t.top != 0 || t.bot != t.h-1 || t.stay == nil ||
+		!bytes.HasPrefix(p, ssu) || !bytes.HasSuffix(p, esu) || len(p) < len(ssu)+len(esu) {
+		return ""
+	}
+	if !o.r.canScroll() || scrollsOrClears(p) {
+		return ""
+	}
+	if plan := o.r.takePlan(); plan != nil {
+		return plan.sequence()
+	}
+	return ""
 }
 
 // write writes q, which stands for p, and reports progress through p.

@@ -100,7 +100,7 @@ func rows(lo, hi int) []int {
 // and never erases.
 func TestRepaintAround(t *testing.T) {
 	line := "ab" + strings.Repeat(" ", 6) + "\x1b[1mcd\x1b[m"
-	got := repaintAround([]string{"", line}, 1, 14, []ival{{2, 8}})
+	got := repaintAround([]string{"", line}, 1, 14, []ival{{2, 8}}, nil)
 	if strings.Contains(got, "\x1b[K") || strings.Contains(got, "X") {
 		t.Fatalf("repaint erases: %q", got)
 	}

@@ -156,6 +156,8 @@ func run(demo bool) error {
 		Passthrough: artChoice.Passthrough,
 		Tmux:        artChoice.Tmux,
 		TilePrefix:  ui.TileKeyPrefix,
+		// the escape hatch if a terminal moves images wrongly when it scrolls
+		NoScroll: os.Getenv("ENCORE_IMAGE_SCROLL") == "off",
 	})
 	stopWatch := func() {}
 	if artChoice.Tmux && artR.Fragile() {

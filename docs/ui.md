@@ -299,8 +299,11 @@ the same answer, and is left out once the search found no match.
 failed) and what the now-playing art shows and why to
 `~/Library/Logs/encore/art.log`.
 Grid tiles (`Ctx.TileArt`) are images too on iTerm2-protocol terminals, fetched
-at 256 px, sent as JPEG at quality 80 (`tileImageQuality`; a scroll by a row
-sends every visible tile again, 15 of them, about 125 KB) and at most 64 per frame.
+at 256 px, sent as JPEG at quality 80 (`tileImageQuality`) and at most 64 per frame.
+A scroll by a row moves the images in the terminal instead of sending every
+visible tile again (`art.planScroll`, see the package docs): 10 images and about
+54 KB for a tap on `j` in the 140×42 grid, 15 and 125 KB without it (inside
+tmux, which owns the screen, and with `ENCORE_IMAGE_SCROLL=off`).
 A settled grid also loads the covers of the two rows above and below the visible
 ones (`AlbumGrid.prefetch`, `artStore.prefetch`): they queue behind everything on
 screen and don't redraw the UI, so a tap that scrolls a row finds them loaded. The renderer keeps the encoded payload of

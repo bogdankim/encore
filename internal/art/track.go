@@ -594,6 +594,16 @@ func (d *damage) scroll(top, bot, n int) {
 	}
 }
 
+// shift records a scroll the Output carries out itself, ahead of the frame:
+// it moves fragments like any other scroll, but marks nothing damaged, since
+// the images are drawn after it from what it brought.
+func (d *damage) shift(top, bot, n int) {
+	if bot < top || n == 0 || d.all {
+		return
+	}
+	d.scrolls = append(d.scrolls, scrollOp{top, bot, n})
+}
+
 // moved returns where the fragments of r ended up after the scrolls.
 func (d *damage) moved(r rect) []rect {
 	frags := []rect{r}

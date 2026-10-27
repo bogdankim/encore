@@ -33,6 +33,9 @@ type Options struct {
 	// Cell is the cell size in pixels; zero means DefaultCellSize until
 	// SetCellSize is called.
 	Cell CellSize
+	// NoScroll turns off scrolling images in the terminal: a grid that
+	// scrolls then sends every tile again at its new place.
+	NoScroll bool
 }
 
 // Renderer turns artwork into terminal output for one program. Views call
@@ -74,8 +77,13 @@ type Renderer struct {
 	occl   []rect
 	lines  []string
 	pieces []piece
+	// screen is the text the terminal shows: the lines of the frame Bubble
+	// Tea last wrote (see Output.Write), nil when that is not known.
+	screen []string
 
 	shown    map[piece]bool // IIP pieces believed to be on screen
+	plan     *scrollPlan    // the scroll the output being written carries out, see takePlan
+	noScroll bool           // never scroll images in the terminal, see Options.NoScroll
 	dirtyAll bool
 	notify   func()
 	// notifyAfter asks for an output pass after d (set by the Output).
@@ -232,6 +240,7 @@ func NewRenderer(o Options) *Renderer {
 		passthrough: o.Passthrough,
 		tmux:        o.Tmux,
 		now:         time.Now,
+		noScroll:    o.NoScroll,
 		cell:        o.Cell,
 		cellKnown:   o.Cell.W > 0 && o.Cell.H > 0,
 		images:      newCostLRU[string, image.Image](imagesMax, imagesBudget, imageBytes),
@@ -488,6 +497,7 @@ func (r *Renderer) forgetPassthroughLocked() {
 }
 
 func (r *Renderer) invalidateLocked() {
+	r.screen = nil
 	r.dirtyAll = true
 	r.shown = map[piece]bool{}
 	r.poke()
@@ -763,8 +773,13 @@ func (r *Renderer) ops(dmg *damage) string {
 	}
 	all := dmg.all || r.dirtyAll
 	r.dirtyAll = false
+	plan := r.plan
+	r.plan = nil
+	if all {
+		plan = nil // the screen was cleared: everything is drawn again
+	}
 	pieces := slices.Clone(r.pieces)
-	lines, width, cell := r.lines, r.width, r.cell
+	lines, width, cell, screen := r.lines, r.width, r.cell, r.screen
 	prev := r.shown
 	now := make(map[piece]bool, len(pieces))
 	for _, p := range pieces {
@@ -789,6 +804,9 @@ func (r *Renderer) ops(dmg *damage) string {
 	// cleared screen has no fragments left.
 	var repaint damage
 	var rows []int
+	if plan != nil {
+		dmg.shift(plan.top, plan.bot, plan.dy)
+	}
 	if !dmg.all {
 		for p := range prev {
 			if now[p] && len(dmg.scrolls) == 0 {
@@ -811,20 +829,46 @@ func (r *Renderer) ops(dmg *damage) string {
 			}
 		}
 	}
+	// What stays where it is: cells the repaint must write around.
+	keep := map[piece][]rect{}
+	if plan != nil {
+		// Bubble Tea does not know the scrolled rows moved, so every one
+		// of them is written from the frame.
+		for y := plan.top; y <= plan.bot; y++ {
+			if !slices.Contains(rows, y) {
+				rows = append(rows, y)
+			}
+		}
+		for _, p := range pieces {
+			if k := plan.kept(p, prev, dmg.hits); len(k) > 0 {
+				keep[p] = k
+			}
+		}
+	}
 	if len(rows) > 0 {
 		// around every image in this frame: the ones that stay keep their
 		// cells, and new ones are drawn over theirs below
 		skip := map[int][]ival{}
 		for _, p := range pieces {
-			for y := p.vis.y; y < p.vis.y+p.vis.h; y++ {
-				skip[y] = append(skip[y], ival{p.vis.x, p.vis.x + p.vis.w})
+			spans := []rect{p.vis}
+			if plan != nil {
+				spans = keep[p]
+			}
+			for _, v := range spans {
+				for y := v.y; y < v.y+v.h; y++ {
+					skip[y] = append(skip[y], ival{v.x, v.x + v.w})
+				}
 			}
 		}
 		slices.Sort(rows)
 		b.WriteString("\x1b7")
 		for _, y := range rows {
 			sp := mergeSpans(skip[y])
-			b.WriteString(repaintAround(lines, y, width, sp))
+			var shows func(lo, hi int) string
+			if plan != nil && y >= plan.top && y <= plan.bot && len(screen) == len(lines) {
+				shows = plan.shows(screen, y, width)
+			}
+			b.WriteString(repaintAround(lines, y, width, sp, shows))
 			x := 0
 			for _, v := range sp {
 				repaint.mark(y, x, v.lo)
@@ -838,6 +882,15 @@ func (r *Renderer) ops(dmg *damage) string {
 	// The pieces to draw: new ones, and ones the output disturbed.
 	var draw []piece
 	for _, p := range pieces {
+		if plan != nil {
+			if _, planned := keep[p]; planned || plan.carried[p] != nil {
+				// the scroll brought some of it: draw the rest
+				for _, v := range without(p.vis, keep[p]) {
+					draw = append(draw, piece{p.key, p.box, v})
+				}
+				continue
+			}
+		}
 		hit := dmg.hits(p.vis)
 		if r.sixelKey(p.key) && r.tmux {
 			hit = dmg.hitsLine(p.vis)
@@ -917,12 +970,16 @@ func (r *Renderer) staying() *staying {
 		}
 	}
 	for _, p := range r.pieces {
-		if !r.shown[p] {
+		stays := []rect{p.vis}
+		if r.plan != nil && r.plan.carried[p] != nil {
+			stays = r.plan.carried[p]
+		} else if !r.shown[p] {
 			continue
 		}
-		v := p.vis
-		for y := v.y; y < v.y+v.h; y++ {
-			st.spans[y] = append(st.spans[y], ival{v.x, v.x + v.w})
+		for _, v := range stays {
+			for y := v.y; y < v.y+v.h; y++ {
+				st.spans[y] = append(st.spans[y], ival{v.x, v.x + v.w})
+			}
 		}
 	}
 	for _, s := range st.spans {
@@ -999,7 +1056,7 @@ func (r *Renderer) redo(rows []int, skip map[int][]ival) string {
 	var b strings.Builder
 	b.WriteString("\x1b7")
 	for _, y := range rows {
-		b.WriteString(repaintAround(lines, y, width, skip[y]))
+		b.WriteString(repaintAround(lines, y, width, skip[y], nil))
 	}
 	b.WriteString("\x1b8")
 	return b.String()
@@ -1008,7 +1065,7 @@ func (r *Renderer) redo(rows []int, skip map[int][]ival) string {
 // repaintAround rewrites screen row y from the frame except the cells in
 // skip (sorted spans), which hold images: each stretch between them is the
 // frame's text for those columns, padded with spaces.
-func repaintAround(lines []string, y, width int, skip []ival) string {
+func repaintAround(lines []string, y, width int, skip []ival, shows func(lo, hi int) string) string {
 	line := ""
 	if y < len(lines) {
 		line = lines[y]
@@ -1018,15 +1075,29 @@ func repaintAround(lines []string, y, width int, skip []ival) string {
 	}
 	var b strings.Builder
 	x := 0
-	put := func(lo, hi int) {
+	emit := func(lo, hi int) {
 		if hi <= lo {
 			return
 		}
 		seg := ansi.Cut(line, lo, hi)
+		if shows != nil && sameCells(seg, shows(lo, hi), hi-lo) {
+			return
+		}
 		b.WriteString("\x1b[" + strconv.Itoa(y+1) + ";" + strconv.Itoa(lo+1) + "H\x1b[m" + seg + "\x1b[m")
 		if pad := hi - lo - ansi.StringWidth(seg); pad > 0 {
 			b.WriteString(strings.Repeat(" ", pad))
 		}
+	}
+	put := func(lo, hi int) {
+		if shows == nil || hi-lo < 16 {
+			emit(lo, hi)
+			return
+		}
+		// the text, then the blanks after it, which a repaint over the
+		// same blanks need not write
+		used := ansi.StringWidth(strings.TrimRight(ansi.Strip(ansi.Cut(line, lo, hi)), " "))
+		emit(lo, lo+used)
+		emit(lo+used, hi)
 	}
 	for _, v := range skip {
 		put(x, min(v.lo, width))
