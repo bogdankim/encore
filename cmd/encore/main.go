@@ -17,6 +17,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/bogdankim/encore/internal/art"
 	"github.com/bogdankim/encore/internal/bridge"
@@ -193,7 +194,11 @@ func run(demo bool) error {
 		FrameCap:       time.Second / 30, // while a key or the wheel repeats
 		OnInput:        mem.Touch,
 	})
-	prog := tea.NewProgram(app, tea.WithOutput(out))
+	opts := []tea.ProgramOption{tea.WithOutput(out)}
+	if tmuxTrueColor(os.Getenv) {
+		opts = append(opts, tea.WithColorProfile(colorprofile.TrueColor))
+	}
+	prog := tea.NewProgram(app, opts...)
 	ref.send = prog.Send
 	stopHangup := onHangup(restoreTmux, func() {
 		prog.Quit()
@@ -214,6 +219,16 @@ func run(demo bool) error {
 
 // termProgram is TERM_PROGRAM, or inside tmux (where it is "tmux") the
 // terminal tmux runs in, when art detection found it.
+// tmuxTrueColor reports whether to send 24-bit colour inside tmux. Bubble
+// Tea only trusts it when tmux's terminfo has Tc or RGB, which is often
+// missing even though tmux draws 24-bit colour. Its own 256-colour mapping
+// then turns the grey behind a loading cover into colour 17, which base16
+// themes draw orange. tmux converts 24-bit colour for any client that can't
+// show it, so sending it is never worse.
+func tmuxTrueColor(env func(string) string) bool {
+	return env("TMUX") != "" && env("NO_COLOR") == ""
+}
+
 func termProgram(ch art.Choice) string {
 	if ch.Outer == art.OuterWezTerm {
 		return "WezTerm"
