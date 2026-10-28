@@ -24,6 +24,11 @@ type Catalog interface {
 	ArtistAlbums(ctx context.Context, artistID int64) (catalog.Artist, []catalog.Album, error)
 	ArtistTopSongs(ctx context.Context, artistID int64, limit int) ([]catalog.Song, error)
 	AlbumTracks(ctx context.Context, collectionID int64) (catalog.Album, []catalog.Song, error)
+	// ArtistPage is what the artist's Apple Music page lists beyond the
+	// albums: sections, top songs and their Essentials playlist.
+	ArtistPage(ctx context.Context, artistID int64) (catalog.ArtistPage, error)
+	PlaylistSongs(ctx context.Context, playlistID string) ([]catalog.Song, error)
+	SearchStations(ctx context.Context, q string) ([]catalog.Station, error)
 }
 
 const (
@@ -291,4 +296,12 @@ func catalogMenuItems(ts []*library.Track) []MenuItem {
 	items := menuGroup(playMenuItems(src, ts), catalogNavItems(ts)...)
 	items = menuGroup(items, openInItems(true, subjectOf(ts))...)
 	return menuGroup(items, musicMenuItems(ts)...)
+}
+
+// PlayingStation is the id of the radio station playing, or "".
+func (c *Ctx) PlayingStation() string {
+	if st := c.Player.Station; st != nil {
+		return st.ID
+	}
+	return ""
 }

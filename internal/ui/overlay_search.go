@@ -102,6 +102,14 @@ type catalogSearchMsg struct {
 	err   error
 }
 
+// catalogStationsMsg carries the radio stations a catalog search found.
+type catalogStationsMsg struct {
+	owner *SearchOverlay
+	gen   uint64
+	query string
+	st    []catalog.Station
+}
+
 // searchResultsMsg carries the hits for query generation gen of one overlay.
 type searchResultsMsg struct {
 	owner *SearchOverlay
@@ -123,6 +131,7 @@ const (
 	srCatSong
 	srCatAlbum
 	srCatArtist
+	srCatStation
 	srNote // a dim line, not selectable
 )
 
@@ -165,6 +174,10 @@ type SearchOverlay struct {
 	catSince  time.Time // when it went out
 	catSlow   bool      // it has run catalogQuiet: "Searching Apple Music…"
 	catCancel context.CancelFunc
+	// Radio stations, from Apple Music's web search: they come apart from
+	// the rest and show once stQuery matches catQuery.
+	stations []catalog.Station
+	stQuery  string
 }
 
 // NewSearch opens search in scope, without the Apple Music tab.
@@ -309,9 +322,12 @@ func (s *SearchOverlay) startCatalog(c *Ctx) tea.Cmd {
 	s.catBusy, s.catSince = true, c.Now
 	cat, q, gen := s.cat, s.query(), s.catGen
 	return tea.Batch(catalogQuietTick(), func() tea.Msg {
-		defer cancel()
 		res, err := cat.Search(ctx, q, catalogSearchLimit)
 		return catalogSearchMsg{owner: s, gen: gen, query: q, res: res, err: err}
+	}, func() tea.Msg {
+		// A station search that fails leaves the stations out.
+		st, _ := cat.SearchStations(ctx, q)
+		return catalogStationsMsg{owner: s, gen: gen, query: q, st: st}
 	})
 }
 
@@ -336,6 +352,12 @@ func (s *SearchOverlay) updateCatalog(msg tea.Msg, c *Ctx) (tea.Cmd, bool) {
 		}
 		s.catSongs = catalogTracks(m.res.Songs)
 		s.rebuild()
+		return nil, true
+	case catalogStationsMsg:
+		if m.owner == s && m.gen == s.catGen {
+			s.stations, s.stQuery = m.st, m.query
+			s.rebuild()
+		}
 		return nil, true
 	case catalogTickMsg:
 		if s.catBusy && !s.catSlow && c.Now.Sub(s.catSince) >= catalogQuiet {
@@ -399,15 +421,27 @@ func (s *SearchOverlay) rebuildCatalog() {
 		return
 	}
 	r := &s.catRes
-	for _, g := range []struct {
+	type group struct {
 		kind searchRowKind
 		name string
 		n    int
-	}{
+	}
+	groups := []group{
 		{srCatArtist, "Artists", len(r.Artists)},
 		{srCatAlbum, "Albums", len(r.Albums)},
 		{srCatSong, "Songs", len(r.Songs)},
-	} {
+	}
+	if n := len(s.stations); n > 0 && s.stQuery == s.catQuery {
+		// Stations lead when one is named like the query ("nts" finds
+		// NTS Radio 1 before artists called NTS); else they come last.
+		st := group{srCatStation, "Radio Stations", n}
+		if strings.HasPrefix(library.Fold(s.stations[0].Name), library.Fold(s.catQuery)) {
+			groups = append([]group{st}, groups...)
+		} else {
+			groups = append(groups, st)
+		}
+	}
+	for _, g := range groups {
 		if g.n == 0 {
 			continue
 		}
@@ -602,6 +636,14 @@ func (s *SearchOverlay) activate(i int, c *Ctx) tea.Cmd {
 	case srCatArtist:
 		ar := s.catRes.Artists[row.i]
 		return ovClose(c, func(h Host) tea.Cmd { return h.Open(newCatalogArtistView(ar)) })
+	case srCatStation:
+		st := stationFound(s.stations[row.i])
+		return ovClose(c, func(h Host) tea.Cmd {
+			if hh, ok := h.(homeHost); ok {
+				return hh.PlayStation(st)
+			}
+			return nil
+		})
 	case srSong:
 		songs := s.songs()
 		return ovClose(c, func(h Host) tea.Cmd {
@@ -855,6 +897,8 @@ func (s *SearchOverlay) primaryText(r searchRow) string {
 		return s.catRes.Albums[r.i].Name
 	case srCatArtist:
 		return s.catRes.Artists[r.i].Name
+	case srCatStation:
+		return s.stations[r.i].Name
 	}
 	return ""
 }
@@ -949,6 +993,14 @@ func (s *SearchOverlay) cells(c *Ctx, r searchRow, cols [3]int) string {
 		hl := search.Highlight(s.catQuery, a.Name)
 		primary = ovMark(a.Name, hl[0], t.Text, match)
 		secondary = t.Dim.Render(a.Genre)
+	case srCatStation:
+		st := s.stations[r.i]
+		hl := search.Highlight(s.catQuery, st.Name)
+		primary = ovMark(st.Name, hl[0], t.Text, match)
+		secondary = t.Dim.Render(st.Subtitle)
+		if c.PlayingStation() == st.ID {
+			right = t.Accent.Render(t.G.Playing)
+		}
 	}
 	return Row(2, Cell{Text: primary, W: cols[0]}, Cell{Text: secondary, W: cols[1]}, Cell{Text: right, W: cols[2], Right: true})
 }
@@ -963,4 +1015,11 @@ func searchMark(t *theme.Theme, rest string, w int) string {
 		return rest
 	}
 	return t.Dim.Render(t.G.InLib) + strings.Repeat(" ", gap) + rest
+}
+
+// stationFound is a station from search as the player plays it. Live
+// broadcast stations need no kind: the player sees they report no
+// duration.
+func stationFound(st catalog.Station) player.Station {
+	return player.Station{ID: st.ID, Name: st.Name, Kind: player.StationMood, ArtURL: catalog.ResizeArt(st.Artwork, catalogArtPx)}
 }

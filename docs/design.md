@@ -465,7 +465,9 @@ song of that title and artist, id or not).
 
 - Scopes: All, Songs, Albums, Artists, Playlists, and Apple Music, which
   searches the catalog (iTunes Search API) 350 ms after typing stops and lists
-  artists, albums and songs. All ends with a row that switches to it.
+  artists, albums and songs, plus radio stations from Apple Music's web search
+  (they lead when the first is named like the query, else come last; `enter`
+  plays one). All ends with a row that switches to it.
 - Query: whitespace-separated terms, all must match (AND). Each term matches as a
   substring of any field; scoring favours whole-word and word-prefix matches,
   title over artist over album, shorter fields, and favorited/recently played as a
@@ -583,6 +585,26 @@ override any token in config.
 - Recently Added: album grid (art tiles with title and artist under each).
 - Artists: two columns: artist list, and the selected artist's albums (grid) with
   their top songs.
+- Artist pages (library and Apple Music) have sections. Songs: Top Songs, and
+  for Apple Music artists Essentials (the artist's Essentials playlist, loaded
+  when first chosen). Albums: Albums, Singles & EPs, Live Albums, Compilations,
+  Appears On, Essential Albums, in that order, empty ones left out. Each part
+  has one row of names over it at column 3: a single section is a dim label,
+  several are chips, the chosen one in accent (bold when the part doesn't have
+  the cursor), the others dim, album chips with a faint count. When the row
+  doesn't fit, labels shorten ("Singles", "Live", "Comps", "With",
+  "Essentials"), then the counts go, then the row starts later with a faint
+  `‹` so the chosen chip shows. `}` and `{` (List context) move the cursor to
+  the first item of the next or previous section, songs first, stopping at the
+  ends; a click on a chip does the same. The grid shows one album section at a
+  time, so an artist with many releases isn't one long scroll.
+  Apple Music artist: the album lookup's releases are sorted by Apple's web
+  page (live, compilations, appears on) and by title (" - Single", " - EP");
+  the web page adds what the lookup lacks (Appears On, Essential Albums, its
+  compilations), and the artist's songs (200 by popularity) add the Various
+  Artists albums and soundtracks they are on. Library artist: titles sort
+  Albums from Singles & EPs; `Library.Appearances` adds library albums listed
+  under another artist that hold songs crediting this one.
 - Apple Music items the library has carry a dim `✓`, always in a fixed place:
   in the favorite column's slot (two cells before Time) of an Apple Music
   album's track list and an artist's top songs; at the right edge of the title
@@ -632,6 +654,7 @@ Navigation
 | `/` | filter the current list (live), `esc` clears |
 | `v` | toggle grid/list where it applies |
 | `o` `O` | next sort field / reverse the sort |
+| `}` `{` | next / previous section (artist pages) |
 
 Playback
 

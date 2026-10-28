@@ -33,6 +33,7 @@ type demoCatalog struct {
 	tracks   map[int64][]int // album id → song indexes in track order
 	byArtist map[int64][]int // artist id → album indexes
 	artistOf map[int64]int   // artist id → index in artists
+	only     map[int64]bool  // the catalog-only artists
 	ids      map[int64]bool
 }
 
@@ -88,6 +89,17 @@ var demoArtists = []struct {
 	}},
 }
 
+// demoCompilation is the demo catalog's Various Artists album.
+const demoCompilation = "Harbour Lights (Original Soundtrack)"
+
+// demoStations are the radio stations demo search finds.
+var demoStations = []catalog.Station{
+	{ID: "ra.1461123917", Name: "Lantern FM 1", Artwork: demoArtURL("station-lantern-1")},
+	{ID: "ra.1461608125", Name: "Lantern FM 2", Artwork: demoArtURL("station-lantern-2")},
+	{ID: "ra.1522038105", Name: "Lantern Slow Focus", Artwork: demoArtURL("station-lantern-slow")},
+	{ID: "ra.978194965", Name: "Harbour Radio", Subtitle: "Live", Artwork: demoArtURL("station-harbour")},
+}
+
 type demoAlbum struct {
 	title string
 	year  int
@@ -103,6 +115,7 @@ func newDemoCatalog(lib *library.Library, fake *bridge.Fake) *demoCatalog {
 		tracks:   map[int64][]int{},
 		byArtist: map[int64][]int{},
 		artistOf: map[int64]int{},
+		only:     map[int64]bool{},
 		ids:      map[int64]bool{},
 	}
 	artistID := map[string]int64{}
@@ -184,6 +197,7 @@ func newDemoCatalog(lib *library.Library, fake *bridge.Fake) *demoCatalog {
 	}
 	for _, da := range demoArtists {
 		aid := artist(da.name, da.genre)
+		d.only[aid] = true
 		for _, al := range da.albums {
 			key := "extra-" + da.name + "-" + al.title
 			rel := time.Date(al.year, time.Month(1+fnv32(key)%12), 1, 0, 0, 0, 0, time.UTC)
@@ -202,6 +216,21 @@ func newDemoCatalog(lib *library.Library, fake *bridge.Fake) *demoCatalog {
 				})
 			}
 		}
+	}
+
+	// A compilation with a song by each catalog-only artist, which their
+	// album lookups leave out, as Apple's do.
+	comp := catalog.Album{Name: demoCompilation, Artist: catalog.VariousArtists, Genre: "Soundtrack",
+		Released: time.Date(2024, 11, 8, 0, 0, 0, 0, time.UTC), Artwork: demoArtURL("extra-" + demoCompilation)}
+	comp.TrackCount = len(demoArtists)
+	compID := addAlbum(comp)
+	for i, da := range demoArtists {
+		name := da.albums[0].songs[1] + " (From the Film)"
+		addSong(catalog.Song{
+			AlbumID: compID, ArtistID: artistID[da.name], Name: name, Artist: da.name, Album: demoCompilation,
+			AlbumArtist: catalog.VariousArtists, Genre: "Soundtrack", Duration: time.Duration(170+fnv32(name)%90) * time.Second,
+			TrackNumber: i + 1, DiscNumber: 1, Released: comp.Released, Artwork: comp.Artwork,
+		})
 	}
 
 	if fake != nil {
@@ -348,11 +377,9 @@ func (d *demoCatalog) ArtistTopSongs(ctx context.Context, artistID int64, limit 
 		return nil, catalog.ErrNotFound
 	}
 	var songs []catalog.Song
-	for _, k := range d.byArtist[artistID] {
-		for _, j := range d.tracks[d.albums[k].ID] {
-			if d.songs[j].Streamable {
-				songs = append(songs, d.songs[j])
-			}
+	for _, s := range d.songs {
+		if s.ArtistID == artistID && s.Streamable {
+			songs = append(songs, s)
 		}
 	}
 	// "popularity": a stable shuffle
@@ -406,4 +433,71 @@ func (l lazyCatalog) ArtistTopSongs(ctx context.Context, id int64, limit int) ([
 
 func (l lazyCatalog) AlbumTracks(ctx context.Context, id int64) (catalog.Album, []catalog.Song, error) {
 	return l.get().AlbumTracks(ctx, id)
+}
+
+// ArtistPage gives the catalog-only artists what Apple's pages have: their
+// first album as an essential, an Essentials playlist and the Live
+// Sessions albums as live ones.
+func (d *demoCatalog) ArtistPage(ctx context.Context, artistID int64) (catalog.ArtistPage, error) {
+	if err := d.wait(ctx); err != nil {
+		return catalog.ArtistPage{}, err
+	}
+	i, ok := d.artistOf[artistID]
+	if !ok {
+		return catalog.ArtistPage{}, catalog.ErrNotFound
+	}
+	p := catalog.ArtistPage{Sections: map[string][]catalog.Album{}}
+	for _, k := range d.byArtist[artistID] {
+		if a := d.albums[k]; a.Name == "Live Sessions" {
+			p.Sections[catalog.SectionLive] = append(p.Sections[catalog.SectionLive], a)
+		}
+	}
+	if d.only[artistID] {
+		if ks := d.byArtist[artistID]; len(ks) > 0 {
+			p.Sections[catalog.SectionEssentials] = []catalog.Album{d.albums[ks[0]]}
+		}
+		p.Essentials = &catalog.Playlist{ID: "pl.demo-" + strconv.FormatInt(artistID, 10), Name: d.artists[i].Name + " Essentials", Curator: "Apple Music"}
+	}
+	return p, nil
+}
+
+// PlaylistSongs plays an Essentials playlist as the artist's songs in
+// another order.
+func (d *demoCatalog) PlaylistSongs(ctx context.Context, pl string) ([]catalog.Song, error) {
+	idText, ok := strings.CutPrefix(pl, "pl.demo-")
+	artistID, err := strconv.ParseInt(idText, 10, 64)
+	if !ok || err != nil {
+		return nil, catalog.ErrNotFound
+	}
+	songs, err := d.ArtistTopSongs(ctx, artistID, 200)
+	if err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(songs, func(a, b catalog.Song) int {
+		return cmp.Compare(fnv32(a.Name+"essential"), fnv32(b.Name+"essential"))
+	})
+	return songs[:min(15, len(songs))], nil
+}
+
+func (d *demoCatalog) SearchStations(ctx context.Context, q string) ([]catalog.Station, error) {
+	if err := d.wait(ctx); err != nil {
+		return nil, err
+	}
+	f := library.Fold(q)
+	if f == "" {
+		return nil, nil
+	}
+	return ranked(demoStations, f, strings.Fields(f), 10, func(s catalog.Station) []string { return []string{s.Name} }), nil
+}
+
+func (l lazyCatalog) ArtistPage(ctx context.Context, id int64) (catalog.ArtistPage, error) {
+	return l.get().ArtistPage(ctx, id)
+}
+
+func (l lazyCatalog) PlaylistSongs(ctx context.Context, pl string) ([]catalog.Song, error) {
+	return l.get().PlaylistSongs(ctx, pl)
+}
+
+func (l lazyCatalog) SearchStations(ctx context.Context, q string) ([]catalog.Station, error) {
+	return l.get().SearchStations(ctx, q)
 }

@@ -27,8 +27,12 @@ const (
 	HistoryForward Action = "history.forward"
 	Filter         Action = "filter"
 	ViewToggleGrid Action = "view.toggleGrid"
-	ViewSort       Action = "view.sort"
-	ViewSortRev    Action = "view.sortReverse"
+	// SectionNext and SectionPrev move between the sections of a page
+	// (an artist's Top Songs, Albums, Singles & EPs, …).
+	SectionNext Action = "section.next"
+	SectionPrev Action = "section.prev"
+	ViewSort    Action = "view.sort"
+	ViewSortRev Action = "view.sortReverse"
 
 	PlayerPlayPause    Action = "player.playPause"
 	PlayerNext         Action = "player.next"
@@ -170,6 +174,8 @@ var actions = []ActionInfo{
 	{ViewToggleGrid, "Grid / List", GroupNavigation, ""},
 	{ViewSort, "Sort", GroupNavigation, ""},
 	{ViewSortRev, "Reverse Sort", GroupNavigation, ""},
+	{SectionNext, "Next Section", GroupNavigation, ""},
+	{SectionPrev, "Previous Section", GroupNavigation, ""},
 
 	{PlayerPlayPause, "Play / Pause", GroupPlayback, ""},
 	{PlayerNext, "Next Track", GroupPlayback, ""},

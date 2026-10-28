@@ -78,6 +78,8 @@ var defaults = []defaultBinding{
 	{List, ViewToggleGrid, []string{"v"}},
 	{List, ViewSort, []string{"o"}},
 	{List, ViewSortRev, []string{"O"}},
+	{List, SectionNext, []string{"}"}},
+	{List, SectionPrev, []string{"{"}},
 	{List, TrackFavorite, []string{"f"}},
 	{List, QueueAdd, []string{"a"}},
 	{List, QueuePlayNext, []string{"A"}},

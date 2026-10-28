@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -34,6 +35,8 @@ type fakeCatalog struct {
 	err      error
 	block    bool
 	stopped  atomic.Int32
+	page     catalog.ArtistPage
+	stations []catalog.Station
 }
 
 var (
@@ -87,6 +90,18 @@ func (f *fakeCatalog) ArtistTopSongs(ctx context.Context, id int64, limit int) (
 
 func (f *fakeCatalog) AlbumTracks(ctx context.Context, id int64) (catalog.Album, []catalog.Song, error) {
 	return fcAlbum, fcSongs, f.err
+}
+
+func (f *fakeCatalog) ArtistPage(ctx context.Context, id int64) (catalog.ArtistPage, error) {
+	return f.page, f.err
+}
+
+func (f *fakeCatalog) PlaylistSongs(ctx context.Context, pl string) ([]catalog.Song, error) {
+	return fcSongs, f.err
+}
+
+func (f *fakeCatalog) SearchStations(ctx context.Context, q string) ([]catalog.Station, error) {
+	return f.stations, f.err
 }
 
 func (f *fakeCatalog) queries() []string {
@@ -493,6 +508,73 @@ func TestCatalogArtistView(t *testing.T) {
 	}
 }
 
+func TestCatalogArtistSections(t *testing.T) {
+	c, _ := ovTestCtx(t)
+	single := catalog.Album{ID: 22, ArtistID: 11, Name: "Weather Vane - Single", Artist: "Juniper Vale"}
+	live := catalog.Album{ID: 23, ArtistID: 11, Name: "Live at the Pier", Artist: "Juniper Vale"}
+	cat := &fakeCatalog{page: catalog.ArtistPage{
+		Sections: map[string][]catalog.Album{
+			catalog.SectionLive:       {live},
+			catalog.SectionAppearsOn:  {{ID: 40, Name: "Duets", Artist: "Someone Else"}},
+			catalog.SectionEssentials: {fcAlbum},
+		},
+		Essentials: &catalog.Playlist{ID: "pl.x", Name: "Juniper Vale Essentials"},
+	}}
+	c.Catalog = cat
+	v := newCatalogArtistView(catalog.Artist{ID: 11, Name: "Juniper Vale"})
+	v.own = []catalog.Album{fcAlbum, single, live}
+	v.albums = []*library.Album{catalogAlbum(fcAlbum), catalogAlbum(single), catalogAlbum(live)}
+	v.songs = []catalog.Song{{ID: 50, AlbumID: 60, Name: "From the Film", Album: "Harbour Lights (Original Soundtrack)", AlbumArtist: catalog.VariousArtists}}
+	v.web = cat.page
+	v.rebind()
+
+	var labels []string
+	for _, s := range v.page.albumSec {
+		labels = append(labels, s.label+":"+strconv.Itoa(len(s.albums)))
+	}
+	if got := strings.Join(labels, " "); got != "Albums:1 Singles & EPs:1 Live Albums:1 Compilations:1 Appears On:1 Essential Albums:1" {
+		t.Errorf("album sections = %s", got)
+	}
+	out := v.Render(140, 42, c)
+	for _, want := range []string{"Top Songs", "Essentials", "Singles & EPs", "Compilations", "Essential Albums"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+
+	// } walks Top Songs → Essentials (loading its songs) → Albums → Singles & EPs.
+	run := func(cmd tea.Cmd) {
+		runCmd(cmd, func(m tea.Msg) tea.Cmd {
+			if r, ok := m.(catalogResultMsg); ok {
+				return r.apply(c)
+			}
+			return nil
+		})
+	}
+	_, cmd := v.Action(keymap.SectionNext, 1, c)
+	run(cmd)
+	if v.page.inGrid || v.page.songSec != 1 || len(v.page.songs) != len(fcSongs) {
+		t.Fatalf("after one }: grid %v, song section %d, %d songs", v.page.inGrid, v.page.songSec, len(v.page.songs))
+	}
+	v.Action(keymap.SectionNext, 2, c)
+	if !v.page.inGrid || v.page.albumCur != 1 || v.page.grid.Selected().Title != single.Name {
+		t.Errorf("after three }: grid %v, section %d", v.page.inGrid, v.page.albumCur)
+	}
+	v.Action(keymap.SectionPrev, 1, c)
+	if v.page.albumCur != 0 {
+		t.Errorf("{ went to section %d", v.page.albumCur)
+	}
+	v.Action(keymap.SectionNext, 99, c)
+	if v.page.albumCur != len(v.page.albumSec)-1 {
+		t.Errorf("} past the end: section %d", v.page.albumCur)
+	}
+	// Essentials keep their songs when another load lays the page out again.
+	v.rebind()
+	if got := len(v.page.songSecs[1].songs); got != len(fcSongs) {
+		t.Errorf("essentials after rebind: %d songs", got)
+	}
+}
+
 func TestCatalogHostPlay(t *testing.T) {
 	ts := catalogTracks(fcSongs)
 	items, start := catalogItemsOf(ts, 1)
@@ -533,5 +615,32 @@ func TestCatalogErrText(t *testing.T) {
 	}
 	if catalogErrText(errors.New("dial tcp")) != catalogOfflineM {
 		t.Error("network")
+	}
+}
+
+func TestSearchStationsLead(t *testing.T) {
+	s := NewSearchIn(scopeCatalog, &fakeCatalog{})
+	s.in.SetValue("nts")
+	s.catQuery, s.stQuery = "nts", "nts"
+	s.catRes = catalog.Results{Artists: []catalog.Artist{fcArtist}}
+	s.stations = []catalog.Station{{ID: "ra.1461123917", Name: "NTS Radio 1"}, {ID: "ra.1461608125", Name: "NTS Radio 2"}}
+	s.rebuild()
+	if s.rows[0].kind != srHeading || s.rows[0].text != "Radio Stations" || s.rows[1].kind != srCatStation {
+		t.Fatalf("rows = %+v", s.rows)
+	}
+	s.stations[0].Name, s.stations[1].Name = "Worldwide FM", "Other"
+	s.rebuild()
+	if s.rows[0].text != "Artists" || s.rows[len(s.rows)-1].kind != srCatStation {
+		t.Errorf("stations not named like the query should come last: %+v", s.rows)
+	}
+	s.stQuery = "nt" // an older answer
+	s.rebuild()
+	for _, r := range s.rows {
+		if r.kind == srCatStation {
+			t.Fatal("stations for another query are listed")
+		}
+	}
+	if st := stationFound(catalog.Station{ID: "ra.1", Name: "X", Artwork: "https://a/b/100x100bb.jpg"}); st.ArtURL != "https://a/b/600x600bb.jpg" {
+		t.Errorf("station art = %q", st.ArtURL)
 	}
 }

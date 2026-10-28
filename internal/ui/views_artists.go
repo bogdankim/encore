@@ -18,24 +18,99 @@ import (
 // An artist page lists its topSongs most played songs.
 const topSongs = 5
 
-// artistPage is one artist: name, counts, top songs and the album grid. It is
-// the right half of Artists and the whole of an artist view.
-type artistPage struct {
-	artist  *library.Artist
-	songs   []*library.Track // every track, most played first
-	top     *TrackTable      // the top songs' columns and rows
-	songCur int
-	inGrid  bool
-	hover   int // song index under the pointer, -1 when none
-	grid    AlbumGrid
+// pageSection is one section of an artist page: a list of songs (Top
+// Songs, Essentials) or one kind of release in the album grid (Albums,
+// Singles & EPs, …). A page with more than one of a kind shows them as
+// chips over the list or the grid; { and } and a click move between them.
+type pageSection struct {
+	label, short string // short stands in when the chips don't fit
+	songs        []*library.Track
+	albums       []*library.Album
+	// load fills a song section the first time it is chosen; note says
+	// why it is empty meanwhile ("Loading…", an error).
+	load func(c *Ctx) tea.Cmd
+	note string
+}
 
-	w, h   int
-	songsY int // first song line, from the last Render
-	songsN int // songs shown
-	gridY  int
-	zones  []albumZone // header buttons, from the last Render
-	hoverZ int
-	press  pressGuard
+// Album section labels, in page order.
+var (
+	secAlbums       = pageSection{label: "Albums", short: "Albums"}
+	secSingles      = pageSection{label: "Singles & EPs", short: "Singles"}
+	secLive         = pageSection{label: "Live Albums", short: "Live"}
+	secCompilations = pageSection{label: "Compilations", short: "Comps"}
+	secAppearsOn    = pageSection{label: "Appears On", short: "With"}
+	secEssentials   = pageSection{label: "Essential Albums", short: "Essentials"}
+)
+
+// withAlbums is sec holding albums.
+func (sec pageSection) withAlbums(albums []*library.Album) pageSection {
+	sec.albums = albums
+	return sec
+}
+
+// isSingle reports whether an album title marks a single or an EP, as
+// Apple titles them ("Inure - EP").
+func isSingle(title string) bool {
+	t := strings.ToLower(strings.TrimSpace(title))
+	return strings.HasSuffix(t, " - single") || strings.HasSuffix(t, " - ep")
+}
+
+// albumSections drops the empty sections of secs.
+func albumSections(secs ...pageSection) []pageSection {
+	return slices.DeleteFunc(secs, func(s pageSection) bool { return len(s.albums) == 0 })
+}
+
+// artistSections sorts a library artist's albums into Albums and Singles
+// & EPs, and adds the compilations and other artists' albums with their
+// songs.
+func artistSections(a *library.Artist, lib *library.Library) []pageSection {
+	var albums, singles, comps, others []*library.Album
+	for _, al := range a.Albums {
+		if isSingle(al.Title) {
+			singles = append(singles, al)
+		} else {
+			albums = append(albums, al)
+		}
+	}
+	if lib != nil {
+		for _, al := range lib.Appearances(a.Name) {
+			if al.Compilation || al.Artist == library.VariousArtists {
+				comps = append(comps, al)
+			} else {
+				others = append(others, al)
+			}
+		}
+	}
+	return albumSections(secAlbums.withAlbums(albums), secSingles.withAlbums(singles),
+		secCompilations.withAlbums(comps), secAppearsOn.withAlbums(others))
+}
+
+// artistPage is one artist: name, counts, songs and the album grid, each
+// in sections. It is the right half of Artists and the whole of an artist
+// view.
+type artistPage struct {
+	artist   *library.Artist
+	songSecs []pageSection
+	songSec  int
+	albumSec []pageSection
+	albumCur int              // selected album section
+	lib      *library.Library // the library the album sections came from
+	songs    []*library.Track // the selected song section's songs
+	top      *TrackTable      // their columns and rows
+	songCur  int
+	inGrid   bool
+	hover    int // song index under the pointer, -1 when none
+	grid     AlbumGrid
+
+	w, h    int
+	songsY  int // first song line, from the last Render
+	songsN  int // songs shown
+	noteN   int // 1 when the song section shows its note instead
+	gridY   int
+	zones   []albumZone // header buttons and section chips, from the last Render
+	hoverZ  int
+	press   pressGuard
+	songsOK bool // the songs part was on screen in the last Render
 
 	// Set for an Apple Music artist (CatalogArtistView): the top songs
 	// come from Apple rather than play counts, there are topN of them,
@@ -57,54 +132,190 @@ func newArtistPage(a *library.Artist) artistPage {
 func (p *artistPage) bind(a *library.Artist) {
 	same := p.artist != nil && a != nil && p.artist.Name == a.Name
 	p.artist = a
-	p.songs = p.songs[:0]
 	if a == nil {
+		p.songSecs, p.albumSec, p.songs = nil, nil, nil
 		p.grid.Reset(nil)
 		p.top = nil
 		return
 	}
+	var songs []*library.Track
 	for _, al := range a.Albums {
-		p.songs = append(p.songs, al.Tracks...)
+		songs = append(songs, al.Tracks...)
 	}
-	slices.SortStableFunc(p.songs, func(x, y *library.Track) int {
+	slices.SortStableFunc(songs, func(x, y *library.Track) int {
 		if c := cmp.Compare(y.Plays, x.Plays); c != 0 {
 			return c
 		}
 		return y.LastPlayed.Compare(x.LastPlayed)
 	})
-	top := p.songs[:min(topSongs, len(p.songs))]
-	cols := []Column{ColTitle, ColAlbum, ColTime}
-	if oneAlbum(top) {
-		cols = []Column{ColTitle, ColTime}
+	p.songSecs = []pageSection{{label: "Top Songs", short: "Top Songs", songs: songs}}
+	p.lib = nil
+	p.setAlbumSections(artistSections(a, nil), same)
+	if !same {
+		p.songSec, p.songCur, p.inGrid, p.hover = 0, 0, false, -1
 	}
-	p.top = NewTrackTable(top, TableOptions{Source: p.source(), Natural: true, Columns: cols})
-	if same {
-		p.grid.SetItems(a.Albums)
-		return
-	}
-	p.grid.Reset(a.Albums)
-	p.songCur, p.inGrid, p.hover = 0, false, -1
+	p.showSongs()
 }
 
-// bindCatalog shows an Apple Music artist: albums (catalog albums, no
-// tracks) and top songs (stand-ins) as they arrive. Rebinding the same
-// artist keeps the cursors.
-func (p *artistPage) bindCatalog(name string, albums []*library.Album, songs []*library.Track) {
+// sync adds what needs the library to a library artist's sections, once
+// per library.
+func (p *artistPage) sync(lib *library.Library) {
+	if p.cat || p.artist == nil || lib == nil || lib == p.lib {
+		return
+	}
+	p.lib = lib
+	p.setAlbumSections(artistSections(p.artist, lib), true)
+}
+
+// bindCatalog shows an Apple Music artist: album sections (catalog albums,
+// no tracks) and song sections (stand-ins) as they arrive. Rebinding the
+// same artist keeps the cursors.
+func (p *artistPage) bindCatalog(name string, albums []pageSection, songs []pageSection) {
 	same := p.artist != nil && p.artist.Name == name
-	p.artist = &library.Artist{Name: name, Albums: albums, FoldName: library.Fold(name)}
-	p.songs = append(p.songs[:0], songs...)
+	var all []*library.Album
+	for _, s := range albums {
+		all = append(all, s.albums...)
+	}
+	p.artist = &library.Artist{Name: name, Albums: all, FoldName: library.Fold(name)}
+	p.songSecs = songs
+	p.setAlbumSections(albums, same)
+	if !same {
+		p.songSec, p.songCur, p.inGrid, p.hover = 0, 0, false, -1
+	}
+	p.songSec = min(p.songSec, max(len(p.songSecs)-1, 0))
+	p.showSongs()
+}
+
+// setAlbumSections replaces the album sections, keeping the chosen one by
+// label when keep is set.
+func (p *artistPage) setAlbumSections(secs []pageSection, keep bool) {
+	label := ""
+	if keep && p.albumCur < len(p.albumSec) {
+		label = p.albumSec[p.albumCur].label
+	}
+	p.albumSec = secs
+	p.albumCur = max(slices.IndexFunc(secs, func(s pageSection) bool { return s.label == label }), 0)
+	if keep && label != "" && p.albumCur < len(secs) && secs[p.albumCur].label == label {
+		p.grid.SetItems(p.gridAlbums())
+		return
+	}
+	p.grid.Reset(p.gridAlbums())
+}
+
+// sectionAlbums are the albums of the album section label.
+func (p *artistPage) sectionAlbums(label string) []*library.Album {
+	for _, s := range p.albumSec {
+		if s.label == label {
+			return s.albums
+		}
+	}
+	return nil
+}
+
+// gridAlbums are the chosen album section's albums.
+func (p *artistPage) gridAlbums() []*library.Album {
+	if p.albumCur < len(p.albumSec) {
+		return p.albumSec[p.albumCur].albums
+	}
+	return nil
+}
+
+// showSongs lists the chosen song section.
+func (p *artistPage) showSongs() {
+	p.songs = nil
+	if p.songSec < len(p.songSecs) {
+		p.songs = p.songSecs[p.songSec].songs
+	}
 	top := p.songs[:min(p.topCount(), len(p.songs))]
 	cols := []Column{ColTitle, ColAlbum, ColTime}
 	if len(top) > 0 && oneAlbum(top) {
 		cols = []Column{ColTitle, ColTime}
 	}
-	p.top = NewTrackTable(top, TableOptions{Source: p.source(), Natural: true, Columns: cols, NoHeart: true, LibMark: true})
-	if same {
-		p.grid.SetItems(albums)
-		return
+	opts := TableOptions{Source: p.source(), Natural: true, Columns: cols}
+	if p.cat {
+		opts.NoHeart, opts.LibMark = true, true
 	}
-	p.grid.Reset(albums)
-	p.songCur, p.inGrid, p.hover = 0, false, -1
+	p.top = NewTrackTable(top, opts)
+	p.songCur = min(p.songCur, max(len(top)-1, 0))
+}
+
+// sections is every section in page order: the song sections, then the
+// album sections.
+func (p *artistPage) sections() int { return len(p.songSecs) + len(p.albumSec) }
+
+// section is the section that has the cursor.
+func (p *artistPage) section() int {
+	if p.inGrid {
+		return len(p.songSecs) + p.albumCur
+	}
+	return p.songSec
+}
+
+// reachable reports whether section i can take the cursor: a song section
+// only while the songs part is on screen.
+func (p *artistPage) reachable(i int) bool {
+	if i < len(p.songSecs) {
+		return p.songsOK
+	}
+	return i < p.sections()
+}
+
+// moveSection moves the cursor n sections on (back when n < 0), skipping
+// those it can't reach, and stops at either end.
+func (p *artistPage) moveSection(n int, c *Ctx) tea.Cmd {
+	step := 1
+	if n < 0 {
+		step, n = -1, -n
+	}
+	to := p.section()
+	for i := to + step; n > 0 && i >= 0 && i < p.sections(); i += step {
+		if p.reachable(i) {
+			to = i
+			n--
+		}
+	}
+	if to == p.section() {
+		return nil
+	}
+	return p.selectSection(to, c)
+}
+
+// selectSection puts the cursor on the first item of section i.
+func (p *artistPage) selectSection(i int, c *Ctx) tea.Cmd {
+	if i < len(p.songSecs) {
+		p.songSec, p.songCur, p.inGrid = i, 0, false
+		p.showSongs()
+		s := &p.songSecs[i]
+		if s.load != nil && len(s.songs) == 0 {
+			load := s.load
+			s.load = nil
+			return load(c)
+		}
+		return nil
+	}
+	j := i - len(p.songSecs)
+	if j >= len(p.albumSec) {
+		return nil
+	}
+	if j != p.albumCur {
+		p.albumCur = j
+		p.grid.Reset(p.gridAlbums())
+	}
+	p.inGrid = true
+	return nil
+}
+
+// fillSongs sets song section label's songs (or its note), after a load.
+func (p *artistPage) fillSongs(label string, songs []*library.Track, note string) {
+	for i := range p.songSecs {
+		if p.songSecs[i].label != label {
+			continue
+		}
+		p.songSecs[i].songs, p.songSecs[i].note = songs, note
+		if i == p.songSec {
+			p.showSongs()
+		}
+	}
 }
 
 // topCount is how many top songs the page lists.
@@ -133,7 +344,10 @@ func (p *artistPage) source() player.Source {
 // them; for an Apple Music artist, the top songs.
 func (p *artistPage) allTracks() []*library.Track {
 	if p.cat {
-		return p.songs
+		if len(p.songSecs) > 0 {
+			return p.songSecs[0].songs
+		}
+		return nil
 	}
 	var ts []*library.Track
 	for _, al := range p.artist.Albums {
@@ -197,18 +411,23 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 	if p.artist == nil {
 		return false, nil
 	}
+	p.sync(c.Lib)
 	switch a {
 	case keymap.PagePlay: // the header's, not the selected album's
 		return true, p.playAll(c)
 	case keymap.PageShuffle:
 		return true, p.shuffleAll(c)
+	case keymap.SectionNext:
+		return true, p.moveSection(max(n, 1), c)
+	case keymap.SectionPrev:
+		return true, p.moveSection(-max(n, 1), c)
 	}
 	n = max(n, 1)
 	if p.inGrid {
-		leave := p.songsN > 0 && (a == keymap.NavTop ||
+		leave := p.songsN+p.noteN > 0 && (a == keymap.NavTop ||
 			a == keymap.NavUp && p.grid.Cursor() < p.grid.perRow())
 		if leave {
-			p.inGrid, p.songCur = false, p.songsN-1
+			p.inGrid, p.songCur = false, max(p.songsN-1, 0)
 			if a == keymap.NavTop {
 				p.songCur = 0
 			}
@@ -225,11 +444,11 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		} else if p.grid.Len() > 0 {
 			p.inGrid = true
 		} else {
-			p.songCur = p.songsN - 1
+			p.songCur = max(p.songsN-1, 0)
 		}
 	case keymap.NavHalfDown, keymap.NavPageDown, keymap.NavBottom:
 		if p.grid.Len() == 0 {
-			p.songCur = p.songsN - 1
+			p.songCur = max(p.songsN-1, 0)
 			return true, nil
 		}
 		p.inGrid = true
@@ -242,6 +461,9 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 			p.songCur = 0
 		}
 	case keymap.Open:
+		if p.songCur >= len(p.songs) {
+			return true, nil
+		}
 		return true, c.Host.Play(p.source(), p.songs, p.songCur)
 	case keymap.TrackFavorite:
 		return true, c.Host.ToggleFavorite(p.Selected())
@@ -250,6 +472,9 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 	case keymap.QueuePlayNext:
 		return true, c.Host.PlayNext(p.Selected())
 	case keymap.Menu:
+		if len(p.Selected()) == 0 {
+			return true, nil
+		}
 		pt := c.Origin.Add(image.Pt(tableGutter, p.songsY+p.songCur))
 		return true, c.Host.Menu(pt.X, pt.Y, p.Selected())
 	default:
@@ -333,6 +558,98 @@ func (p *artistPage) Mouse(ev MouseEvent, c *Ctx) tea.Cmd {
 	return nil
 }
 
+// chipRow is the line over a part of the page: its one section's name in
+// dim, or every section as a chip, the chosen one in accent, album
+// sections with their counts beside them. Chips get zones on row y that choose
+// them; base is the first chip's section index. Labels shorten, then
+// counts go, then the row starts later so the chosen chip shows.
+func (p *artistPage) chipRow(c *Ctx, w, y, base int, secs []pageSection, cur int, active bool) string {
+	pt := paintsFor(c.Theme)
+	l := newLine(pt, surfNone, w).pad(headerHang)
+	if len(secs) == 0 {
+		return l.String()
+	}
+	if len(secs) == 1 {
+		return l.add(toneDim, secs[0].label).String()
+	}
+	const gap = 3
+	num := func(s pageSection) string {
+		if len(s.albums) == 0 {
+			return "" // a song section lists only its first songs
+		}
+		return count(len(s.albums))
+	}
+	type chip struct{ label, n string }
+	build := func(short, counts bool) ([]chip, int) {
+		cs := make([]chip, len(secs))
+		total := 0
+		for i, s := range secs {
+			cs[i].label = s.label
+			if short {
+				cs[i].label = s.short
+			}
+			if counts {
+				cs[i].n = num(s)
+			}
+			total += Width(cs[i].label)
+			if cs[i].n != "" {
+				total += 1 + Width(cs[i].n)
+			}
+		}
+		return cs, total + gap*(len(cs)-1)
+	}
+	room := contentRight(w) - headerHang
+	cs, total := build(false, true)
+	if total > room {
+		cs, total = build(true, true)
+	}
+	if total > room {
+		cs, total = build(true, false)
+	}
+	first := 0
+	for total > room && first < cur {
+		total -= Width(cs[first].label) + gap
+		if cs[first].n != "" {
+			total -= 1 + Width(cs[first].n)
+		}
+		first++
+	}
+	if first > 0 {
+		l.add(toneFaint, "‹ ")
+	}
+	for i := first; i < len(cs); i++ {
+		if i > first {
+			l.pad(gap)
+		}
+		x0 := l.col()
+		need := Width(cs[i].label)
+		if cs[i].n != "" {
+			need += 1 + Width(cs[i].n)
+		}
+		if x0+need > contentRight(w) {
+			l.add(toneFaint, "›")
+			break
+		}
+		tn, tc := toneDim, toneFaint
+		switch {
+		case i == cur && active:
+			tn, tc = toneAccentBold, toneDim
+		case i == cur:
+			tn, tc = toneBold, toneDim
+		case len(p.zones) == p.hoverZ:
+			tn = toneText
+		}
+		l.add(tn, cs[i].label)
+		if cs[i].n != "" {
+			l.pad(1).add(tc, cs[i].n)
+		}
+		k := base + i
+		p.zones = append(p.zones, albumZone{x0: x0, x1: l.col(), y: y,
+			do: func() tea.Cmd { return p.selectSection(k, c) }, hint: secs[i].label})
+	}
+	return l.String()
+}
+
 // Render draws the page; focused is whether the page has the keyboard.
 func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 	if w <= 0 || h <= 0 {
@@ -342,28 +659,47 @@ func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 	if p.artist == nil {
 		return emptyState(c, "No artist selected", w, h)
 	}
+	p.sync(c.Lib)
 	pt := paintsFor(c.Theme)
-	label := func(s string) string { return newLine(pt, surfNone, w).pad(headerHang).add(toneDim, s).String() }
 	lines := append(p.header(w, h, c), "")
 	n := min(p.topCount(), len(p.songs))
-	if h-len(lines)-(n+2)-1 < layoutGrid(w, headerHang).artH+2 {
-		n = 0 // too short: the albums matter more
+	note := ""
+	if p.songSec < len(p.songSecs) && len(p.songs) == 0 {
+		if note = p.songSecs[p.songSec].note; note == "" && p.songSecs[p.songSec].load == nil && len(p.songSecs) > 1 {
+			note = "Loading…"
+		}
+	}
+	p.noteN = 0
+	if note != "" {
+		p.noteN = 1
+	}
+	if h-len(lines)-(n+p.noteN+2)-1 < layoutGrid(w, headerHang).artH+2 {
+		n, p.noteN = 0, 0 // too short: the albums matter more
 	}
 	p.songsN = n
 	p.songsY = len(lines) + 1
-	if n > 0 {
-		p.songCur = min(p.songCur, n-1)
-		lines = append(lines, label("Top Songs"))
-		cursor := p.songCur
-		if p.inGrid {
-			cursor = -1
+	p.songsOK = n+p.noteN > 0
+	if p.songsOK {
+		p.songCur = min(p.songCur, max(n-1, 0))
+		lines = append(lines, p.chipRow(c, w, len(lines), 0, p.songSecs, p.songSec, focused && !p.inGrid))
+		if n > 0 {
+			cursor := p.songCur
+			if p.inGrid {
+				cursor = -1
+			}
+			lines = append(lines, p.top.listRows(p.songsW(), cursor, p.hover, focused, c)...)
+		} else {
+			lines = append(lines, newLine(pt, surfNone, w).pad(headerHang).add(toneDim, note).String())
 		}
-		lines = append(lines, p.top.listRows(p.songsW(), cursor, p.hover, focused, c)...)
 		lines = append(lines, "")
 	} else {
 		p.inGrid = true
 	}
-	lines = append(lines, label("Albums"))
+	if len(p.albumSec) == 0 {
+		lines = append(lines, newLine(pt, surfNone, w).pad(headerHang).add(toneDim, "Albums").String())
+	} else {
+		lines = append(lines, p.chipRow(c, w, len(lines), len(p.songSecs), p.albumSec, p.albumCur, focused && p.inGrid))
+	}
 	p.gridY = len(lines)
 	if p.gridY >= h {
 		return Lines(lines, w, h)
@@ -800,17 +1136,30 @@ func (v *ArtistView) Reindex(lib *library.Library) View {
 // plays a top song and opens an album), then the header's Play and
 // Shuffle.
 func (p *artistPage) FooterHints(c *Ctx) []FooterHint {
+	hs := []FooterHint{{Keys: keysHint(c, keymap.NavDown, keymap.NavUp), Label: "move"}, {Action: keymap.Open, Label: "play"}}
 	if p.inGrid {
-		return append([]FooterHint{p.grid.moveHint(c), {Action: keymap.Open, Label: "open"}}, pageHints...)
+		hs = []FooterHint{p.grid.moveHint(c), {Action: keymap.Open, Label: "open"}}
 	}
-	return append([]FooterHint{{Keys: keysHint(c, keymap.NavDown, keymap.NavUp), Label: "move"}, {Action: keymap.Open, Label: "play"}}, pageHints...)
+	if p.sections() > 1 {
+		hs = append(hs, p.sectionHint(c))
+	}
+	return append(hs, pageHints...)
+}
+
+// sectionHint is the keys between sections, "{ }".
+func (p *artistPage) sectionHint(c *Ctx) FooterHint {
+	return FooterHint{Keys: keysHint(c, keymap.SectionPrev, keymap.SectionNext), Label: "section"}
 }
 
 // FooterHints are the list's keys, or the artist page's while it has the
 // keyboard.
 func (v *ArtistsView) FooterHints(c *Ctx) []FooterHint {
 	if v.right {
-		return append(v.page.FooterHints(c)[:2], FooterHint{Action: keymap.FocusLeft, Label: "back"})
+		hs := v.page.FooterHints(c)[:2]
+		if v.page.sections() > 1 {
+			hs = append(hs, v.page.sectionHint(c))
+		}
+		return append(hs, FooterHint{Action: keymap.FocusLeft, Label: "back"})
 	}
 	return []FooterHint{
 		{Keys: keysHint(c, keymap.NavDown, keymap.NavUp), Label: "move"},

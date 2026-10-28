@@ -23,6 +23,11 @@ import (
 // catalogTopSongs is how many top songs a catalog artist page lists.
 const catalogTopSongs = 10
 
+// catalogArtistSongs is how many of an artist's songs a catalog artist
+// page looks up: past the top songs, they show the compilations and other
+// artists' albums the artist is on.
+const catalogArtistSongs = 200
+
 var errNoCatalog = errors.New("catalog: off")
 
 // loadState is where a page's catalog request is.
@@ -378,18 +383,29 @@ func (v *CatalogAlbumView) Mouse(ev MouseEvent, c *Ctx) tea.Cmd {
 
 // CatalogArtistView is an Apple Music artist: their newest album's art,
 // name, genre and album count, Play / Shuffle for the top songs, the top
-// songs, and the albums newest first.
+// songs and their Essentials playlist, and the albums newest first in
+// sections: Albums, Singles & EPs, Live Albums, Compilations, Appears On
+// and Essential Albums.
 type CatalogArtistView struct {
 	seed      catalog.Artist
 	info      catalog.Artist
 	page      artistPage
+	own       []catalog.Album // the album lookup: their own releases, newest first
 	albums    []*library.Album
-	songs     []*library.Track
+	songs     []catalog.Song // the song lookup, most popular first
+	web       catalog.ArtistPage
 	albumLoad catalogLoad
 	songLoad  catalogLoad
+	webLoad   catalogLoad
+	ess       catalogLoad // the Essentials playlist's songs
+	essSongs  []*library.Track
 	lib       *library.Library
 	libArtist *library.Artist
 }
+
+// essentialsLabel names the song section of an artist's Essentials
+// playlist.
+const essentialsLabel = "Essentials"
 
 // newCatalogArtistView opens catalog artist seed.ID.
 func newCatalogArtistView(seed catalog.Artist) *CatalogArtistView {
@@ -410,12 +426,139 @@ func newCatalogArtistView(seed catalog.Artist) *CatalogArtistView {
 	return v
 }
 
+// rebind lays the page out again from what has loaded so far.
 func (v *CatalogArtistView) rebind() {
-	had := len(v.page.songs) > 0
-	v.page.bindCatalog(v.info.Name, v.albums, v.songs)
-	if !had && len(v.songs) > 0 {
+	hadSongs := len(v.page.songs) > 0
+	v.page.bindCatalog(v.info.Name, v.sections(), v.songSections())
+	if !hadSongs && len(v.page.songs) > 0 {
 		v.page.inGrid = false // the songs came in after the albums
 	}
+}
+
+// sections sorts the albums into the page's sections. The album lookup
+// has every release of their own but calls them all albums; Apple's page
+// says which are live albums and compilations and adds Appears On and
+// Essential Albums; the song lookup finds the soundtracks and Various
+// Artists compilations they are on, which neither lists.
+func (v *CatalogArtistView) sections() []pageSection {
+	byID := map[int64]*library.Album{}
+	for i, a := range v.own {
+		byID[a.ID] = v.albums[i]
+	}
+	in := func(kind string) map[int64]bool {
+		m := map[int64]bool{}
+		for _, a := range v.web.Sections[kind] {
+			m[a.ID] = true
+		}
+		return m
+	}
+	live, comps, singles := in(catalog.SectionLive), in(catalog.SectionCompilations), in(catalog.SectionSingles)
+	others := in(catalog.SectionAppearsOn)
+	var albums, single, liveAl, compAl, appears, essential []*library.Album
+	for i, a := range v.own {
+		al := v.albums[i]
+		switch {
+		case others[a.ID] || a.ArtistID > 0 && a.ArtistID != v.seed.ID:
+			// The lookup lists albums led by others they are on.
+			appears = append(appears, al)
+		case live[a.ID]:
+			liveAl = append(liveAl, al)
+		case comps[a.ID]:
+			compAl = append(compAl, al)
+		case singles[a.ID] || isSingle(a.Name):
+			single = append(single, al)
+		default:
+			albums = append(albums, al)
+		}
+	}
+	// What only Apple's page or the songs know.
+	listed := func(a catalog.Album) *library.Album {
+		if al := byID[a.ID]; al != nil {
+			return al
+		}
+		al := catalogAlbum(a)
+		byID[a.ID] = al
+		return al
+	}
+	extra := func(kind string, to *[]*library.Album) {
+		for _, a := range v.web.Sections[kind] {
+			if _, own := byID[a.ID]; !own || kind == catalog.SectionEssentials {
+				*to = append(*to, listed(a))
+			}
+		}
+	}
+	extra(catalog.SectionLive, &liveAl)
+	extra(catalog.SectionCompilations, &compAl)
+	extra(catalog.SectionAppearsOn, &appears)
+	extra(catalog.SectionEssentials, &essential)
+	skip := map[int64]bool{}
+	for id := range byID {
+		skip[id] = true
+	}
+	vaComps, theirs := catalog.Appearances(v.songs, skip)
+	for _, a := range vaComps {
+		compAl = append(compAl, listed(a))
+	}
+	for _, a := range theirs {
+		appears = append(appears, listed(a))
+	}
+	return albumSections(secAlbums.withAlbums(albums), secSingles.withAlbums(single), secLive.withAlbums(liveAl),
+		secCompilations.withAlbums(compAl), secAppearsOn.withAlbums(appears), secEssentials.withAlbums(essential))
+}
+
+// songSections are Top Songs (Apple's, else the song lookup's order) and
+// the Essentials playlist when the artist has one, loaded when chosen.
+func (v *CatalogArtistView) songSections() []pageSection {
+	var secs []pageSection
+	top := v.web.TopSongs
+	if len(top) == 0 {
+		top = v.songs
+	}
+	if len(top) > 0 {
+		secs = append(secs, pageSection{label: "Top Songs", short: "Top Songs", songs: catalogTracks(top)})
+	}
+	if pl := v.web.Essentials; pl != nil {
+		s := pageSection{label: essentialsLabel, short: essentialsLabel, songs: v.essSongs}
+		switch v.ess.state {
+		case loadIdle:
+			id := pl.ID
+			s.load = func(c *Ctx) tea.Cmd { return v.loadEssentials(c, id) }
+		case loadFailed:
+			s.note = catalogErrText(v.ess.err)
+		case loadDone:
+			if len(v.essSongs) == 0 {
+				s.note = "No songs"
+			}
+		}
+		secs = append(secs, s)
+	}
+	return secs
+}
+
+// loadEssentials loads the songs of the Essentials playlist id.
+func (v *CatalogArtistView) loadEssentials(c *Ctx, id string) tea.Cmd {
+	gen, ok := v.ess.start(c.Now)
+	if !ok || c.Catalog == nil {
+		return nil
+	}
+	return catalogCmd(c.Catalog, func(ctx context.Context, cat Catalog) func(*Ctx) tea.Cmd {
+		songs, err := cat.PlaylistSongs(ctx, id)
+		return func(c *Ctx) tea.Cmd {
+			if !v.ess.finish(gen, err) {
+				return nil
+			}
+			v.essSongs = catalogTracks(songs)
+			note := ""
+			switch {
+			case err != nil:
+				note = catalogErrText(err)
+			case len(songs) == 0:
+				note = "No songs"
+			}
+			v.page.fillSongs(essentialsLabel, v.essSongs, note)
+			return nil
+		}
+	})
 }
 
 func (v *CatalogArtistView) Key() string {
@@ -429,13 +572,13 @@ func (v *CatalogArtistView) Title(c *Ctx) (string, string) {
 func (v *CatalogArtistView) meta() string {
 	n := ""
 	if v.albumLoad.state == loadDone {
-		n = plural(len(v.albums), "album", "albums")
+		n = plural(len(v.page.sectionAlbums(secAlbums.label)), "album", "albums")
 	}
 	return joinMeta(v.info.Genre, n)
 }
 
-// Init loads the albums and the top songs, the first time and after a
-// failure.
+// Init loads the albums, the songs and Apple's page, the first time and
+// after a failure.
 func (v *CatalogArtistView) Init(c *Ctx) tea.Cmd {
 	v.match(c.Lib)
 	var cmds []tea.Cmd
@@ -453,6 +596,7 @@ func (v *CatalogArtistView) Init(c *Ctx) tea.Cmd {
 					if ar.Name != "" {
 						v.info = ar
 					}
+					v.own = albums
 					v.albums = v.albums[:0]
 					for _, a := range albums {
 						v.albums = append(v.albums, catalogAlbum(a))
@@ -470,17 +614,31 @@ func (v *CatalogArtistView) Init(c *Ctx) tea.Cmd {
 			v.songLoad.finish(gen, errNoCatalog)
 		} else {
 			cmds = append(cmds, catalogCmd(c.Catalog, func(ctx context.Context, cat Catalog) func(*Ctx) tea.Cmd {
-				songs, err := cat.ArtistTopSongs(ctx, id, catalogTopSongs)
+				songs, err := cat.ArtistTopSongs(ctx, id, catalogArtistSongs)
 				return func(c *Ctx) tea.Cmd {
 					if !v.songLoad.finish(gen, err) || err != nil {
 						return nil
 					}
-					v.songs = catalogTracks(songs)
+					v.songs = songs
 					v.rebind()
 					return nil
 				}
 			}))
 		}
+	}
+	if gen, ok := v.webLoad.start(c.Now); ok && c.Catalog != nil {
+		cmds = append(cmds, catalogCmd(c.Catalog, func(ctx context.Context, cat Catalog) func(*Ctx) tea.Cmd {
+			page, err := cat.ArtistPage(ctx, id)
+			return func(c *Ctx) tea.Cmd {
+				// Without Apple's page the lookups still make a page.
+				if !v.webLoad.finish(gen, err) || err != nil {
+					return nil
+				}
+				v.web = page
+				v.rebind()
+				return nil
+			}
+		}))
 	}
 	if len(cmds) == 0 {
 		return nil
@@ -507,8 +665,8 @@ func (v *CatalogArtistView) header(w, h int, c *Ctx) pageHeader {
 	if m := v.meta(); m != "" {
 		hd.meta = []string{m}
 	}
-	if len(v.albums) > 0 {
-		hd.art, hd.artPID = v.albums[0].Key, v.albums[0].ArtPID // newest first
+	if al := v.page.artist; al != nil && len(al.Albums) > 0 {
+		hd.art, hd.artPID = al.Albums[0].Key, al.Albums[0].ArtPID // Albums first, newest first
 	} else {
 		hd.art = v.Key() // a calm square until the albums arrive
 	}
@@ -524,7 +682,7 @@ func (v *CatalogArtistView) header(w, h int, c *Ctx) pageHeader {
 }
 
 func (v *CatalogArtistView) playable() bool {
-	for _, t := range v.songs {
+	for _, t := range v.page.allTracks() {
 		if t.Available {
 			return true
 		}
