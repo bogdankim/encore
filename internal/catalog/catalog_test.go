@@ -713,3 +713,20 @@ func TestParallelRefusalsCountOnce(t *testing.T) {
 		t.Fatalf("strikes = %d after a stale success, want 2", strikes)
 	}
 }
+
+func TestAppearances(t *testing.T) {
+	songs := []Song{
+		{ID: 1, AlbumID: 10, Album: "Death Stranding (Songs from the Video Game)", AlbumArtist: "Various Artists"},
+		{ID: 2, AlbumID: 20, Album: "ross."},
+		{ID: 3, AlbumID: 10, Album: "Death Stranding (Songs from the Video Game)", AlbumArtist: "Various Artists"},
+		{ID: 4, AlbumID: 30, Album: "Duets", AlbumArtist: "Someone Else"},
+		{ID: 5, AlbumID: 40, Album: "Known", AlbumArtist: "Various Artists"},
+	}
+	comps, others := Appearances(songs, map[int64]bool{40: true})
+	if len(comps) != 1 || comps[0].ID != 10 || comps[0].Artist != VariousArtists {
+		t.Errorf("compilations = %+v", comps)
+	}
+	if len(others) != 1 || others[0].ID != 30 || others[0].Artist != "Someone Else" {
+		t.Errorf("appears on = %+v", others)
+	}
+}

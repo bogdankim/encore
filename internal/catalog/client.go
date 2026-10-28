@@ -46,6 +46,7 @@ type Client struct {
 	Country   string       // ISO 3166 alpha-2 storefront, e.g. "ca"; default "us"
 	UserAgent string       // default UserAgent
 	Base      string       // default DefaultBase
+	WebBase   string       // default DefaultWebBase
 
 	// CacheDir holds lookup responses as JSON files; "" disables the disk
 	// cache. New sets DefaultCacheDir().
@@ -62,6 +63,7 @@ type Client struct {
 	clk      clock
 	once     sync.Once
 	lim      *limiter
+	webLim   *limiter
 	mem      *memCache
 	disk     *diskCache
 	mu       sync.Mutex
@@ -98,6 +100,10 @@ func (c *Client) init() {
 			c.Base = DefaultBase
 		}
 		c.Base = strings.TrimRight(c.Base, "/")
+		if c.WebBase == "" {
+			c.WebBase = DefaultWebBase
+		}
+		c.WebBase = strings.TrimRight(c.WebBase, "/")
 		c.Country = normCountry(c.Country)
 		if c.SearchTTL <= 0 {
 			c.SearchTTL = DefaultSearchTTL
@@ -118,6 +124,7 @@ func (c *Client) init() {
 			c.MaxWait = DefaultMaxWait
 		}
 		c.lim = newLimiter(c.clk, c.PerMinute, c.Burst, c.MaxWait)
+		c.webLim = newLimiter(c.clk, webPerMinute, webBurst, c.MaxWait)
 		c.mem = newMemCache(memEntries)
 		if c.CacheDir != "" {
 			c.disk = &diskCache{dir: c.CacheDir}

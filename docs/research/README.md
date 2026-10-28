@@ -141,6 +141,51 @@ pulsing dots, marquees, mixed border styles, more than ~5 colours on screen.
   Autoplay), behaviour with another app now playing, and an account without
   an Apple Music subscription.
 
+## Web pages
+
+Checked 2026-10-28 with curl, storefront ca, no cookies or token.
+
+- Every music.apple.com page embeds its data as JSON in
+  `<script type="application/json" id="serialized-server-data">`:
+  `data[0].data.sections[]`, each with `id`, `itemKind` and `items`. A plain
+  browser User-Agent gets it. Code in `internal/catalog/web.go`.
+- Artist page (`/<sf>/artist/<id>`, 0.4–1 MB): section ids carry a marker that
+  isn't localized, `artists_<id>_default.marker.<Name>-…`: `TopSongs` (rows of
+  its own, or under a featured playlist in
+  `shelfgroup.FeaturedContent.TopSongs`, 24 rows), `Essentials` (Essential
+  Albums; each item wraps a `squareLockup`), `Albums`, `ArtistSingles`,
+  `LiveAlbums`, `CompilationAlbums`, `AppearsOn`, `ArtistPlaylists` (the first
+  is "<Artist> Essentials" when Apple has one), `MusicVideos`,
+  `SimilarArtists`, `MoreToHear`, `AllUpcomingConcerts`. Shelves stop at 12
+  items; "see all" goes to `/v1/editorial/…`, which needs a token, so the full
+  album list stays with the Search API. Album tiles: `contentDescriptor`
+  (kind, storeAdamID, url), `titleLinks[0].title`, `subtitleLinks[0].title`
+  (the year on their own shelves, a blurb on Essential Albums, the album's
+  artist on Appears On), artwork templates like `{w}x{h}bb.{f}`. Song rows:
+  `contentDescriptor` (the song id; its URL has the album id), `title`,
+  `duration` (ms), `showExplicitBadge`, subtitle "Album · 2017".
+- Low Roar's page has no Compilations or Appears On shelf, though they have 18
+  songs on Death Stranding (Songs from the Video Game). The Search API's song
+  lookup (`entity=song&limit=200`) has them with `collectionArtistName:
+  "Various Artists"`, which the album lookup leaves out; own albums have no
+  `collectionArtistName`. The album lookup does list others' albums the
+  artist is credited on (Thom Yorke's "Creep (Very 2021 Rmx) [feat.
+  Radiohead]" under Radiohead, `artistId` Thom Yorke's).
+- Playlist page (`/<sf>/playlist/<pl.id>`): a `trackLockup` section with every
+  song of an Essentials playlist (35 of 35 for Radiohead), artist and album
+  links included.
+- Search page (`/<sf>/search?term=`): sections `top-search-section - top`,
+  `… - artist`, `… - album`, `… - song`, `… - playlist`, `… - station`,
+  `… - radio_show`, `… - radio_episode`, 21 items at most. "nts" lists NTS
+  Radio 1 (`ra.1461123917`), NTS Radio 2 (`ra.1461608125`), Memory Lane, Slow
+  Focus, The Tube, Poolside and more. A station page says
+  `radioStation: {isLiveRadio: true, isBroadcastRadio: true}` for these.
+- NTS Radio 1 plays through the station queue below (live test 2026-10-28,
+  speakers muted): status 0 after 4.7 s through the bridge, then playing.
+  Music reports a `URL track` named "NTS Radio 1" with an empty artist,
+  duration 0 and `current stream title` missing value, so the show on air
+  isn't known.
+
 ## Adding to the library
 
 - Works (verified live 2026-10-21, on the playing station song): `duplicate

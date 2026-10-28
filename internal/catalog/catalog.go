@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -53,6 +54,7 @@ type Song struct {
 	Name        string
 	Artist      string
 	Album       string
+	AlbumArtist string // set when the album is someone else's, such as "Various Artists"
 	Genre       string
 	Duration    time.Duration
 	TrackNumber int
@@ -165,6 +167,7 @@ type record struct {
 	CollectionName   string `json:"collectionName"`
 	CollectionURL    string `json:"collectionViewUrl"`
 	CollectionExpl   string `json:"collectionExplicitness"`
+	CollectionArtist string `json:"collectionArtistName"`
 	TrackID          int64  `json:"trackId"`
 	TrackName        string `json:"trackName"`
 	TrackURL         string `json:"trackViewUrl"`
@@ -211,6 +214,7 @@ func (r *record) song() Song {
 		Name:        r.TrackName,
 		Artist:      r.ArtistName,
 		Album:       r.CollectionName,
+		AlbumArtist: r.CollectionArtist,
 		Genre:       r.PrimaryGenreName,
 		Duration:    time.Duration(r.TrackTimeMillis) * time.Millisecond,
 		TrackNumber: r.TrackNumber,
@@ -238,4 +242,37 @@ func decode(body []byte) ([]record, error) {
 		return nil, fmt.Errorf("catalog: bad response: %w", err)
 	}
 	return r.Results, nil
+}
+
+// VariousArtists is the album artist Apple gives compilations and
+// soundtracks.
+const VariousArtists = "Various Artists"
+
+// Appearances finds the albums of other artists among the artist's songs
+// (ArtistTopSongs with a high limit): Various Artists compilations and
+// soundtracks, which the Search API's album lookup leaves out, and other
+// artists' albums the artist is on. Albums in skip are left out. Each
+// list keeps the order of the songs, most popular first.
+func Appearances(songs []Song, skip map[int64]bool) (compilations, appearsOn []Album) {
+	seen := map[int64]bool{}
+	for _, s := range songs {
+		if s.AlbumID <= 0 || s.AlbumArtist == "" || seen[s.AlbumID] || skip[s.AlbumID] {
+			continue
+		}
+		seen[s.AlbumID] = true
+		a := Album{
+			ID:       s.AlbumID,
+			Name:     s.Album,
+			Artist:   s.AlbumArtist,
+			Genre:    s.Genre,
+			Released: s.Released,
+			Artwork:  s.Artwork,
+		}
+		if strings.EqualFold(s.AlbumArtist, VariousArtists) {
+			compilations = append(compilations, a)
+		} else {
+			appearsOn = append(appearsOn, a)
+		}
+	}
+	return compilations, appearsOn
 }

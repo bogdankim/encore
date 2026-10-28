@@ -508,3 +508,24 @@ func BenchmarkSortTracksByArtist50k(b *testing.B) {
 		SortTracks(l.Songs, ByArtist, false)
 	}
 }
+
+func TestAppearances(t *testing.T) {
+	l := fixture(t)
+	got := names(l.Appearances("Daft Punk"), func(a *Album) string { return a.Title })
+	if !slices.Equal(got, []string{"Summer Hits"}) {
+		t.Errorf("Daft Punk appears on %q, want the compilation", got)
+	}
+	if got := l.Appearances("Various Artists"); len(got) != 0 {
+		t.Errorf("Various Artists appears on %d albums of their own", len(got))
+	}
+	for in, want := range map[string][]string{
+		"low roar":                     {"low roar"},
+		"a & b feat. c":                {"a", "b", "c"},
+		"the national, bon iver":       {"national", "bon iver"},
+		"tyler, the creator with kali": {"tyler", "creator", "kali"},
+	} {
+		if got := creditNames(in); !slices.Equal(got, want) {
+			t.Errorf("creditNames(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

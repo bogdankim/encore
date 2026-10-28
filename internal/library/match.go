@@ -1,7 +1,9 @@
 package library
 
 import (
+	"cmp"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -33,6 +35,9 @@ type matchIndex struct {
 	byTitle  map[string][]*Track // by SongKey of the title
 	byAlbum  map[string][]*Album // by AlbumKey of the title, in l.Albums order
 	byGlobal map[string]*Playlist
+	// byCredit holds, by each folded artist name a song credits, the
+	// albums with such songs, in l.Albums order.
+	byCredit map[string][]*Album
 }
 
 func (l *Library) buildMatch() {
@@ -51,9 +56,19 @@ func (l *Library) buildMatch() {
 			m.byTitle[k] = append(m.byTitle[k], t)
 		}
 	}
+	m.byCredit = make(map[string][]*Album, len(l.Artists))
 	for _, a := range l.Albums {
 		if k := AlbumKey(a.Title); k != "" {
 			m.byAlbum[k] = append(m.byAlbum[k], a)
+		}
+		var seen []string
+		for _, t := range a.Tracks {
+			for _, n := range creditNames(t.FoldArtist) {
+				if !slices.Contains(seen, n) {
+					seen = append(seen, n)
+					m.byCredit[n] = append(m.byCredit[n], a)
+				}
+			}
 		}
 	}
 	for _, p := range l.PlaylistsFlat {
@@ -63,6 +78,41 @@ func (l *Library) buildMatch() {
 			}
 		}
 	}
+}
+
+// creditNames splits a folded artist credit ("low roar & someone feat.
+// another") into the names it credits.
+func creditNames(fold string) []string {
+	names := []string{fold}
+	for _, j := range artistJoins {
+		var next []string
+		for _, n := range names {
+			next = append(next, strings.Split(n, j)...)
+		}
+		names = next
+	}
+	out := names[:0]
+	for _, n := range names {
+		if n = strings.TrimPrefix(strings.TrimSpace(n), "the "); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// Appearances returns the albums listed under other artists that hold
+// songs by the artist name: compilations and soundtracks (Various
+// Artists) and other artists' albums, newest first.
+func (l *Library) Appearances(name string) []*Album {
+	key := strings.TrimPrefix(Fold(name), "the ")
+	var out []*Album
+	for _, a := range l.match.byCredit[key] {
+		if !SameName(groupName(a), name) {
+			out = append(out, a)
+		}
+	}
+	slices.SortStableFunc(out, func(x, y *Album) int { return cmp.Compare(y.Year, x.Year) })
+	return out
 }
 
 // trackSongKey is SongKey(t.Title), skipping the note patterns when the title
