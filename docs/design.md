@@ -593,7 +593,12 @@ override any token in config.
   taller). A page opens on the first section of each part; while it loads,
   only a section the user picked is kept, so sections arriving in any order
   don't leave another one chosen. The header art of an Apple Music artist is
-  their photo from Apple's page, else their newest album's cover. Each part
+  their photo from Apple's page, else their newest album's cover. A library
+  artist gets the same photo (`artistphoto.go`): an artist search, kept for
+  Open Artist in Apple Music, then their Apple page; once per artist and
+  session, and in the Artists list only after the cursor rests 1 s, so
+  scrolling spends no requests. A busy or offline answer is retried the next
+  time the page shows. Each part
   has one row of names over it at column 3: a single section is a dim label,
   several are chips, the chosen one in accent (bold when the part doesn't have
   the cursor), the others dim, album chips with a faint count. When the row
