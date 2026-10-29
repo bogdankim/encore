@@ -39,6 +39,9 @@ type Album struct {
 	Explicit   bool
 	Artwork    string // 100 px artwork URL as returned; see ArtURL
 	URL        string // music.apple.com page
+	// Note is Apple's one-line blurb for an essential album ("A
+	// groundbreaking, hitmaking classic."); only artist pages have it.
+	Note string `json:",omitempty"`
 }
 
 // ArtURL returns the album artwork at size×size px (600, 1200 and 3000 all

@@ -454,8 +454,11 @@ func (d *demoCatalog) ArtistPage(ctx context.Context, artistID int64) (catalog.A
 	}
 	if d.only[artistID] {
 		if ks := d.byArtist[artistID]; len(ks) > 0 {
-			p.Sections[catalog.SectionEssentials] = []catalog.Album{d.albums[ks[0]]}
+			ess := d.albums[ks[0]]
+			ess.Note = "The record that set the tone for everything after it."
+			p.Sections[catalog.SectionEssentials] = []catalog.Album{ess}
 		}
+		p.Artwork = demoArtURL("artist-" + d.artists[i].Name)
 		p.Essentials = &catalog.Playlist{ID: "pl.demo-" + strconv.FormatInt(artistID, 10), Name: d.artists[i].Name + " Essentials", Curator: "Apple Music"}
 	}
 	return p, nil

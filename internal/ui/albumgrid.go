@@ -32,11 +32,17 @@ type gridGeom struct {
 	gap   int
 	extra int // gaps, from the last one back, that are one cell wider
 	artH  int
+	notes bool // tiles carry a two-line note in place of the artist
 }
 
-// pitch is the height of one tile row: art, title, artist and a line that
-// carries the selection underline.
-func (g gridGeom) pitch() int { return g.artH + 3 }
+// pitch is the height of one tile row: art, title, artist (or two lines of
+// note) and a line that carries the selection underline.
+func (g gridGeom) pitch() int {
+	if g.notes {
+		return g.artH + 4
+	}
+	return g.artH + 3
+}
 
 // stride is the distance between the left edges of neighbouring tiles
 // (plus one where a gap is wider, see colX).
@@ -122,6 +128,10 @@ type AlbumGrid struct {
 	// Passive hides the cursor, for a grid that shares a page with a list
 	// that has it.
 	Passive bool
+	// notes, by album key, stand in for the artist under a tile, with a
+	// star after its title: Apple's blurbs for an artist's essential
+	// albums. See SetNotes.
+	notes map[string]string
 
 	w, h int
 	geo  gridGeom
@@ -191,6 +201,14 @@ func (g *AlbumGrid) SetItems(items []*library.Album) {
 	if !g.Select(key) {
 		g.cursor = max(min(old, len(items)-1), 0)
 	}
+	g.ensureVisible()
+}
+
+// SetNotes sets the tiles' notes (nil for none). Tiles with notes are a
+// line taller.
+func (g *AlbumGrid) SetNotes(notes map[string]string) {
+	g.notes = notes
+	g.geo.notes = len(notes) > 0
 	g.ensureVisible()
 }
 
@@ -537,6 +555,7 @@ func (g *AlbumGrid) resize(w, h int) {
 	}
 	g.w, g.h = w, h
 	g.geo = layoutGrid(w, g.pad)
+	g.geo.notes = len(g.notes) > 0
 	g.ensureVisible()
 }
 
@@ -702,14 +721,36 @@ func (g *AlbumGrid) renderTiles(c *Ctx) []string {
 				if a.Key == playing {
 					l.add(toneAccent, t.G.Playing).pad(1)
 				}
-				tileTitle(l, title, a.Title, c.CatalogAlbumTileInLibrary(a), &t.G)
+				if _, ok := g.notes[a.Key]; ok {
+					starTitle(l, title, a.Title, c.CatalogAlbumTileInLibrary(a), &t.G)
+				} else {
+					tileTitle(l, title, a.Title, c.CatalogAlbumTileInLibrary(a), &t.G)
+				}
 				return l.String()
 			}, len(row))
 		}
-		if len(lines) < th {
+		var notes [][]string
+		if geo.notes {
+			notes = make([][]string, len(row))
+			for k, a := range row {
+				notes[k] = noteLines(g.notes[a.Key], geo.tileW)
+			}
+		}
+		capLines := 1
+		if notes != nil {
+			capLines = 2
+		}
+		for j := 0; j < capLines && len(lines) < th; j++ {
 			line(func(k int) string {
 				sf, _, _ := g.tileLook(start+k, c)
-				return newLine(p, sf, geo.tileW).add(toneDim, row[k].Artist).String()
+				l := newLine(p, sf, geo.tileW)
+				if notes == nil {
+					return l.add(toneDim, row[k].Artist).String()
+				}
+				if j < len(notes[k]) {
+					l.fit(toneDim, notes[k][j], geo.tileW)
+				}
+				return l.String()
 			}, len(row))
 		}
 		if len(lines) < th {
@@ -771,6 +812,32 @@ func tileTitle(l *line, tn tone, title string, mark bool, g *theme.Glyphs) {
 		return
 	}
 	titleMark(l, tn, title, room, true, g)
+}
+
+// starTitle is tileTitle for an essential album: the title, then a dim
+// star, as Apple Music marks them; the check, if any, stays at the edge.
+func starTitle(l *line, tn tone, title string, mark bool, g *theme.Glyphs) {
+	room := l.w - l.col()
+	if mark && room >= libMarkMinW {
+		room -= 2
+	}
+	l.fit(tn, title, max(min(Width(title), room-2), 1))
+	if l.col() < l.w-1 {
+		l.pad(1).add(toneDim, "★")
+	}
+	if mark && l.w-l.col() >= 1 && room+2 >= libMarkMinW {
+		l.to(l.w-1).add(toneDim, g.InLib)
+	}
+}
+
+// noteLines wraps a tile's note to two lines of w cells; the second holds
+// the rest, for the caller to cut with "…".
+func noteLines(note string, w int) []string {
+	rows := wrapLyric(note, w, 0)
+	if len(rows) > 2 {
+		rows = append(rows[:1], strings.Join(rows[1:], " ")) // the caller fits it
+	}
+	return rows
 }
 
 // libMarkMinW is the narrowest field that still gets a check: below it the

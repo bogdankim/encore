@@ -466,8 +466,7 @@ song of that title and artist, id or not).
 - Scopes: All, Songs, Albums, Artists, Playlists, and Apple Music, which
   searches the catalog (iTunes Search API) 350 ms after typing stops and lists
   artists, albums and songs, plus radio stations from Apple Music's web search
-  (they lead when the first is named like the query, else come last; `enter`
-  plays one). All ends with a row that switches to it.
+  (they come last; `enter` plays one). All ends with a row that switches to it.
 - Query: whitespace-separated terms, all must match (AND). Each term matches as a
   substring of any field; scoring favours whole-word and word-prefix matches,
   title over artist over album, shorter fields, and favorited/recently played as a
@@ -587,8 +586,14 @@ override any token in config.
   their top songs.
 - Artist pages (library and Apple Music) have sections. Songs: Top Songs, and
   for Apple Music artists Essentials (the artist's Essentials playlist, loaded
-  when first chosen). Albums: Albums, Singles & EPs, Live Albums, Compilations,
-  Appears On, Essential Albums, in that order, empty ones left out. Each part
+  when first chosen). Albums: Essential Albums (Apple Music artists), Albums,
+  Singles & EPs, Live Albums, Compilations, Appears On, in that order, empty
+  ones left out. Essential Albums tiles have a dim `★` after the title and
+  Apple's blurb in two dim lines where the artist would be (the row is a line
+  taller). A page opens on the first section of each part; while it loads,
+  only a section the user picked is kept, so sections arriving in any order
+  don't leave another one chosen. The header art of an Apple Music artist is
+  their photo from Apple's page, else their newest album's cover. Each part
   has one row of names over it at column 3: a single section is a dim label,
   several are chips, the chosen one in accent (bold when the part doesn't have
   the cursor), the others dim, album chips with a faint count. When the row

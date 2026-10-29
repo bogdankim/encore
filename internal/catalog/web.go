@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,10 @@ import (
 // DefaultWebBase is the Apple Music web player.
 const DefaultWebBase = "https://music.apple.com"
 
+// webCacheVersion starts the cache keys of parsed pages; a new one drops
+// entries parsed by older code (v2 added artist photos and album notes).
+const webCacheVersion = "web2:"
+
 const (
 	webPerMinute = 20
 	webBurst     = 4
@@ -49,6 +54,8 @@ type ArtistPage struct {
 	// Sections maps a Section* kind to its albums in Apple's order.
 	Sections map[string][]Album `json:"sections,omitempty"`
 	TopSongs []Song             `json:"topSongs,omitempty"`
+	// Artwork is the artist's photo, 100 px; see ResizeArt.
+	Artwork string `json:"artwork,omitempty"`
 	// Essentials is the "<Artist> Essentials" playlist, when the page has
 	// one.
 	Essentials *Playlist `json:"essentials,omitempty"`
@@ -129,7 +136,7 @@ func validPlaylistID(s string) bool {
 // serialized data into the value that is cached, as JSON.
 func (c *Client) webJSON(ctx context.Context, path string, lookup bool, out any, parse func([]byte) (any, error)) error {
 	c.init()
-	key := "web:" + path
+	key := webCacheVersion + path
 	now := c.clk.Now()
 	if body, ok := c.mem.get(key, now); ok {
 		return json.Unmarshal(body, out)
@@ -426,12 +433,15 @@ func parseArtistPage(ssr []byte) (ArtistPage, error) {
 			continue
 		}
 		var h struct {
-			ID    string `json:"id"`
-			Title string `json:"title"`
+			ID            string     `json:"id"`
+			Title         string     `json:"title"`
+			CircleArtwork ssrArtwork `json:"circleArtwork"`
+			Artwork       ssrArtwork `json:"artwork"`
 		}
 		if json.Unmarshal(s.Items[0], &h) == nil {
 			name = h.Title
 			artistID, _ = strconv.ParseInt(h.ID, 10, 64)
+			p.Artwork = cmp.Or(h.CircleArtwork.url(), h.Artwork.url())
 		}
 	}
 	for _, s := range secs {
@@ -528,6 +538,8 @@ func lockupAlbum(l *ssrLockup, kind, artist string, artistID int64) (Album, bool
 	sub := l.subtitle()
 	if y, err := strconv.Atoi(sub); err == nil && y > 1000 && y < 10000 {
 		a.Released = time.Date(y, 1, 1, 0, 0, 0, 0, time.UTC)
+	} else if kind == SectionEssentials {
+		a.Note = sub
 	} else if kind == SectionAppearsOn && sub != "" {
 		a.Artist, a.ArtistID = sub, 0
 		if len(l.SubtitleLinks) > 0 {

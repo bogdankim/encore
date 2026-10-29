@@ -56,7 +56,10 @@ func TestArtistPageSections(t *testing.T) {
 			t.Errorf("%s: %d albums, want %d", k, got, n)
 		}
 	}
-	if e := p.Sections[SectionEssentials]; len(e) > 0 && (e[0].ID != 1109714933 || e[0].Name != "In Rainbows" || !strings.Contains(e[0].Artwork, "/100x100bb.jpg")) {
+	if !strings.Contains(p.Artwork, "/100x100bb.jpg") {
+		t.Errorf("artist photo = %q", p.Artwork)
+	}
+	if e := p.Sections[SectionEssentials]; len(e) > 0 && (e[0].ID != 1109714933 || e[0].Name != "In Rainbows" || e[0].Note != "A groundbreaking, hitmaking classic." || !strings.Contains(e[0].Artwork, "/100x100bb.jpg")) {
 		t.Errorf("essential album = %+v", e[0])
 	}
 	if a := p.Sections[SectionAlbums]; len(a) > 0 && (a[0].Year() == 0 || a[0].Artist != "Radiohead" || a[0].ArtistID != 657515) {
