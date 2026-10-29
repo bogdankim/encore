@@ -115,8 +115,8 @@ type artistPage struct {
 	ess    AlbumGrid
 	essSec pageSection
 	inEss  bool
-	// peek scrolls the page down to the shelf without moving the cursor
-	// (the wheel past the end of the grid).
+	// peek scrolls the page down to the albums without moving the cursor
+	// (the wheel off the grid).
 	peek bool
 
 	w, h    int
@@ -126,6 +126,7 @@ type artistPage struct {
 	gridY   int
 	gridH   int         // the grid's rows on screen
 	essY    int         // first row of the shelf's tiles, 0 when it isn't on screen
+	essH    int         // the shelf's rows on screen
 	zones   []albumZone // header buttons and section chips, from the last Render
 	hoverZ  int
 	press   pressGuard
@@ -303,23 +304,25 @@ func (p *artistPage) showSongs() {
 	p.songCur = min(p.songCur, max(len(top)-1, 0))
 }
 
-// sections is every section in page order: the song sections, the
-// album sections, then Essential Albums.
-func (p *artistPage) sections() int {
-	n := len(p.songSecs) + len(p.albumSec)
+// sections is every section in page order: the song sections,
+// Essential Albums, then the album sections.
+func (p *artistPage) sections() int { return p.albumBase() + len(p.albumSec) }
+
+// albumBase is the index of the first album section.
+func (p *artistPage) albumBase() int {
 	if p.hasEss() {
-		n++
+		return len(p.songSecs) + 1
 	}
-	return n
+	return len(p.songSecs)
 }
 
 // section is the section that has the cursor.
 func (p *artistPage) section() int {
 	switch {
 	case p.inEss:
-		return len(p.songSecs) + len(p.albumSec)
+		return len(p.songSecs)
 	case p.inGrid:
-		return len(p.songSecs) + p.albumCur
+		return p.albumBase() + p.albumCur
 	}
 	return p.songSec
 }
@@ -367,12 +370,12 @@ func (p *artistPage) selectSection(i int, c *Ctx) tea.Cmd {
 		}
 		return nil
 	}
-	j := i - len(p.songSecs)
-	if j == len(p.albumSec) && p.hasEss() {
+	if i == len(p.songSecs) && p.hasEss() {
 		p.inGrid, p.inEss = false, true
 		return nil
 	}
-	if j >= len(p.albumSec) {
+	j := i - p.albumBase()
+	if j < 0 || j >= len(p.albumSec) {
 		return nil
 	}
 	if j != p.albumCur {
@@ -510,12 +513,20 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 	}
 	n = max(n, 1)
 	p.peek = false
+	songs := p.songsOK // the songs can take the cursor
 	if p.inEss {
-		if a == keymap.NavTop || a == keymap.NavUp && p.ess.Cursor() < p.ess.perRow() {
-			p.inEss = false
-			p.inGrid = p.grid.Len() > 0
+		lastRow := p.ess.Cursor()/p.ess.perRow() == p.ess.totalRows()-1
+		switch {
+		case songs && (a == keymap.NavTop || a == keymap.NavUp && p.ess.Cursor() < p.ess.perRow()):
+			p.inEss, p.songCur = false, max(p.songsN-1, 0)
 			if a == keymap.NavTop {
-				p.inGrid, p.songCur = p.songsN+p.noteN == 0, 0
+				p.songCur = 0
+			}
+			return true, nil
+		case p.grid.Len() > 0 && (a == keymap.NavBottom || a == keymap.NavDown && lastRow):
+			p.inEss, p.inGrid = false, true
+			if a == keymap.NavBottom {
+				p.grid.moveTo(p.grid.Len() - 1)
 			}
 			return true, nil
 		}
@@ -524,17 +535,19 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		return p.ess.Action(a, n, cc)
 	}
 	if p.inGrid {
-		if a == keymap.NavDown && p.hasEss() && p.grid.Cursor()/p.grid.perRow() == p.grid.totalRows()-1 {
+		firstRow := p.grid.Cursor() < p.grid.perRow()
+		switch {
+		case a == keymap.NavUp && firstRow && p.hasEss():
 			p.inGrid, p.inEss = false, true
 			return true, nil
-		}
-		leave := p.songsN+p.noteN > 0 && (a == keymap.NavTop ||
-			a == keymap.NavUp && p.grid.Cursor() < p.grid.perRow())
-		if leave {
+		case songs && (a == keymap.NavTop || a == keymap.NavUp && firstRow):
 			p.inGrid, p.songCur = false, max(p.songsN-1, 0)
 			if a == keymap.NavTop {
 				p.songCur = 0
 			}
+			return true, nil
+		case a == keymap.NavTop && p.hasEss():
+			p.inGrid, p.inEss = false, true
 			return true, nil
 		}
 		cc := c.at(0, p.gridY)
@@ -545,6 +558,8 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 	case keymap.NavDown:
 		if p.songCur+n < p.songsN {
 			p.songCur += n
+		} else if p.hasEss() {
+			p.inEss = true
 		} else if p.grid.Len() > 0 {
 			p.inGrid = true
 		} else {
@@ -630,22 +645,30 @@ func (p *artistPage) Mouse(ev MouseEvent, c *Ctx) tea.Cmd {
 		p.press.double(ev)
 		return p.zones[p.hoverZ].do()
 	}
-	if ev.Kind == MouseWheel && p.hasEss() {
-		// Past the end of the grid, or anywhere off it, the wheel
-		// scrolls the page to the shelf and back.
+	if ev.Kind == MouseWheel {
+		// Off the grid, the wheel scrolls the page down to the albums
+		// and back; on it, back up once the grid is at its top.
 		inGrid := ev.Y >= p.gridY && ev.Y < p.gridY+p.gridH
-		g := &p.grid
-		end := g.top >= g.totalRows()-g.rowsVisible()
 		switch d := ev.wheelDelta(); {
-		case d > 0 && (!inGrid || end) && p.essY == 0:
+		case d > 0 && !inGrid && !p.peek:
 			p.peek = true
 			return nil
-		case d < 0 && p.peek && (!inGrid || g.top == 0):
+		case d < 0 && p.peek && (!inGrid || p.grid.top == 0):
 			p.peek = false
 			return nil
 		}
 	}
-	if ev.Y >= p.essY && p.essY > 0 {
+	if ev.Y >= p.gridY && p.gridY > 0 {
+		p.hover = -1
+		p.ess.ClearHover()
+		ge := ev.local(0, p.gridY)
+		if ev.Kind == MousePress && p.grid.HitTest(ge.X, ge.Y) >= 0 {
+			p.inGrid, p.inEss = true, false
+		}
+		return p.grid.Mouse(ge, c.at(0, p.gridY))
+	}
+	p.grid.ClearHover()
+	if p.essY > 0 && ev.Y >= p.essY && ev.Y < p.essY+p.essH {
 		p.hover = -1
 		p.grid.ClearHover()
 		ee := ev.local(0, p.essY)
@@ -655,15 +678,6 @@ func (p *artistPage) Mouse(ev MouseEvent, c *Ctx) tea.Cmd {
 		return p.ess.Mouse(ee, c.at(0, p.essY))
 	}
 	p.ess.ClearHover()
-	if ev.Y >= p.gridY && p.gridY > 0 {
-		p.hover = -1
-		ge := ev.local(0, p.gridY)
-		if ev.Kind == MousePress && p.grid.HitTest(ge.X, ge.Y) >= 0 {
-			p.inGrid, p.inEss = true, false
-		}
-		return p.grid.Mouse(ge, c.at(0, p.gridY))
-	}
-	p.grid.ClearHover()
 	i := p.songAt(ev.X, ev.Y)
 	switch ev.Kind {
 	case MouseMotion, MouseWheel:
@@ -784,10 +798,10 @@ func (p *artistPage) chipRow(c *Ctx, w, y, base int, secs []pageSection, cur int
 }
 
 // Render draws the page; focused is whether the page has the keyboard.
-// From the top: the header, the songs, the album sections and the
-// Essential Albums shelf. When the shelf has the cursor (or the wheel
-// asked for it) and doesn't fit, the page scrolls: the header folds to a
-// title line, then the songs go.
+// From the top: the header, the songs, the Essential Albums shelf and the
+// album sections. When what has the cursor doesn't fit (or the wheel asked
+// for the albums), the page scrolls: the header folds to a title line,
+// then the songs go, then the shelf.
 func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 	if w <= 0 || h <= 0 {
 		return ""
@@ -822,26 +836,44 @@ func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 		songsH = n + p.noteN + 2 // the chips, the rows, a blank line
 	}
 
-	// How far the page scrolls.
+	// How far the page scrolls: blocks above what has the cursor fold
+	// away until it fits. skip 1 folds the header to a title line, 2 drops
+	// the songs, 3 the shelf.
 	headerH := hdH + 1
 	gridNeed, essH := p.grid.needH(w), 0
 	if p.hasEss() {
 		essH = 1 + p.ess.needH(w)
 	}
 	minGrid := min(gridNeed, layoutGrid(w, headerHang).pitch()+1)
-	wantEss := p.hasEss() && (p.inEss || p.peek)
-	skip := 0
-	for wantEss && skip < 2 {
-		used := 1 + minGrid + essH + songsH // the album chips, some grid, the shelf
+	used := func(skip int, below int) int {
+		n := below
 		if skip == 0 {
-			used += headerH
+			n += headerH
 		} else {
-			used++ // the title line
+			n++ // the title line
 		}
-		if used <= h {
-			break
+		if skip < 2 {
+			n += songsH
 		}
-		skip++
+		if skip < 3 {
+			n += essH
+		}
+		return n
+	}
+	skip := 0
+	switch {
+	case p.inEss:
+		for skip < 2 && used(skip, 0) > h {
+			skip++
+		}
+	case p.inGrid || p.peek:
+		last := 2
+		if p.hasEss() {
+			last = 3
+		}
+		for skip < last && used(skip, 1+minGrid) > h {
+			skip++
+		}
 	}
 
 	var lines []string
@@ -869,27 +901,29 @@ func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 		}
 		lines = append(lines, "")
 	}
+	p.essY, p.essH = 0, 0
+	if p.hasEss() && skip < 3 && h-len(lines) >= 2 {
+		lines = append(lines, p.chipRow(c, w, len(lines), 0, []pageSection{p.essSec}, 0, false))
+		p.essY = len(lines)
+		p.essH = min(p.ess.needH(w), h-p.essY)
+		cc := c.at(0, p.essY)
+		cc.Focused = focused && p.inEss
+		p.ess.Passive = !p.inEss
+		lines = append(lines, strings.Split(p.ess.Render(w, p.essH, cc, ""), "\n")...)
+	}
+	p.gridY, p.gridH = 0, 0
+	if len(lines) >= h {
+		return Lines(lines, w, h)
+	}
 	if len(p.albumSec) == 0 {
 		lines = append(lines, newLine(pt, surfNone, w).pad(headerHang).add(toneDim, "Albums").String())
 	} else {
-		lines = append(lines, p.chipRow(c, w, len(lines), len(p.songSecs), p.albumSec, p.albumCur, focused && p.inGrid))
+		lines = append(lines, p.chipRow(c, w, len(lines), p.albumBase(), p.albumSec, p.albumCur, focused && p.inGrid))
 	}
-	p.gridY, p.essY = len(lines), 0
-	if p.gridY >= h {
-		p.gridH = 0
-		return Lines(lines, w, h)
-	}
-	rest := h - p.gridY
-	p.gridH = rest
-	if p.hasEss() {
-		switch {
-		case wantEss:
-			p.gridH = max(rest-essH, 0)
-		case rest-essH >= minGrid:
-			p.gridH = min(gridNeed, rest-essH)
-		}
-	}
-	if p.gridH > 0 {
+	// A row or two of covers at the bottom reads as torn: then the chips
+	// alone say the albums are below.
+	if h-len(lines) >= minGridPeek {
+		p.gridY, p.gridH = len(lines), h-len(lines)
 		cc := c.at(0, p.gridY)
 		cc.Focused = focused && p.inGrid
 		p.grid.Passive = !p.inGrid
@@ -900,16 +934,12 @@ func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 		}
 		lines = append(lines, strings.Split(p.grid.Render(w, p.gridH, cc, empty), "\n")...)
 	}
-	if y := p.gridY + p.gridH; p.hasEss() && h-y >= 2 {
-		lines = append(lines, p.chipRow(c, w, y, 0, []pageSection{p.essSec}, 0, false))
-		p.essY = y + 1
-		cc := c.at(0, p.essY)
-		cc.Focused = focused && p.inEss
-		p.ess.Passive = !p.inEss
-		lines = append(lines, strings.Split(p.ess.Render(w, h-p.essY, cc, ""), "\n")...)
-	}
 	return Lines(lines, w, h)
 }
+
+// minGridPeek is the fewest rows the album grid shows at the bottom of
+// the page.
+const minGridPeek = 4
 
 // headerRows is how many rows pageHeader.render takes in a w×h view: the
 // art's height, or one line without room for art.

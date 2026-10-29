@@ -588,16 +588,16 @@ override any token in config.
   for Apple Music artists Essentials (the artist's Essentials playlist, loaded
   when first chosen). Albums: Albums, Singles & EPs, Live Albums,
   Compilations, Appears On, in that order, empty ones left out. Essential
-  Albums (Apple Music artists) is a shelf of its own under the album grid,
+  Albums (Apple Music artists) is a shelf of its own between the songs and
+  the album sections, and `}` walks it in that order,
   with a dim label: its tiles have a dim `★` after the title and Apple's blurb
   in two dim lines where the artist would be (the row is a line taller), and
   its art goes by its own keys, since its albums can be on screen in the grid
-  too. The page scrolls in blocks: the grid takes the rows it needs when the
-  shelf fits under it; when the shelf has the cursor (`}`, `j` from the
-  grid's last row, a click) or the wheel goes past the grid's end or off it,
-  the header folds to a title line (`‹ Name`), then the songs go, until the
-  shelf and some of the grid fit. `k` from the shelf's first row, `{`, or the
-  wheel back up return. A page opens on the first section of each part; while it loads,
+  too. The page scrolls in blocks: with the cursor on the shelf, the header
+  folds to a title line (`‹ Name`), then the songs go, until the shelf fits;
+  with it in the grid (or the wheel turned down off the grid), the shelf goes
+  too, until the chips and a row of covers fit. The grid shows at least four
+  rows or none, so the bottom of the page never holds a sliver of covers. A page opens on the first section of each part; while it loads,
   only a section the user picked is kept, so sections arriving in any order
   don't leave another one chosen. The header art of an Apple Music artist is
   their photo from Apple's page, else their newest album's cover. A library

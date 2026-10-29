@@ -545,8 +545,8 @@ func TestCatalogArtistSections(t *testing.T) {
 		}
 	}
 
-	// } walks Top Songs → Essentials (loading its songs) → Albums →
-	// Singles & EPs → … → the Essential Albums shelf.
+	// } walks Top Songs → Essentials (loading its songs) → the Essential
+	// Albums shelf → Albums → Singles & EPs → …
 	run := func(cmd tea.Cmd) {
 		runCmd(cmd, func(m tea.Msg) tea.Cmd {
 			if r, ok := m.(catalogResultMsg); ok {
@@ -560,9 +560,13 @@ func TestCatalogArtistSections(t *testing.T) {
 	if v.page.inGrid || v.page.songSec != 1 || len(v.page.songs) != len(fcSongs) {
 		t.Fatalf("after one }: grid %v, song section %d, %d songs", v.page.inGrid, v.page.songSec, len(v.page.songs))
 	}
+	v.Action(keymap.SectionNext, 1, c)
+	if !v.page.inEss {
+		t.Errorf("the second } didn't reach the shelf")
+	}
 	v.Action(keymap.SectionNext, 2, c)
 	if !v.page.inGrid || v.page.albumCur != 1 || v.page.grid.Selected().Title != single.Name {
-		t.Errorf("after three }: grid %v, section %d", v.page.inGrid, v.page.albumCur)
+		t.Errorf("after four }: grid %v, section %d", v.page.inGrid, v.page.albumCur)
 	}
 	// A picked section stays picked when another load lays the page out.
 	v.rebind()
@@ -574,25 +578,34 @@ func TestCatalogArtistSections(t *testing.T) {
 		t.Errorf("{ went to section %d", v.page.albumCur)
 	}
 	v.Action(keymap.SectionNext, 99, c)
-	if !v.page.inEss || v.page.inGrid {
-		t.Errorf("} past the end: grid %v, shelf %v", v.page.inGrid, v.page.inEss)
+	if !v.page.inGrid || v.page.albumCur != len(v.page.albumSec)-1 {
+		t.Errorf("} past the end: grid %v, section %d", v.page.inGrid, v.page.albumCur)
 	}
-	// The shelf scrolls into view on a short screen: the header folds to a
-	// title line.
+	// On a short screen the albums scroll into view: the header folds to
+	// a title line and what is above goes.
+	out = v.Render(100, 30, c)
+	checkSize(t, "scrolled", out, 100, 30)
+	if v.page.gridY == 0 || v.page.gridH < 3 {
+		t.Errorf("the grid isn't on screen with the cursor in it: y %d, %d rows", v.page.gridY, v.page.gridH)
+	}
+	// Up from the grid's first row is the shelf, up from the shelf the songs.
+	v.Action(keymap.NavUp, 1, c)
+	if !v.page.inEss || v.page.inGrid {
+		t.Errorf("up from the grid: grid %v, shelf %v", v.page.inGrid, v.page.inEss)
+	}
 	out = v.Render(100, 30, c)
 	if !strings.Contains(out, "Essential Albums") || v.page.essY == 0 {
 		t.Errorf("the shelf isn't on screen with the cursor on it")
 	}
-	checkSize(t, "scrolled", out, 100, 30)
+	v.Action(keymap.NavDown, 1, c)
+	if !v.page.inGrid {
+		t.Errorf("down from the shelf's last row didn't reach the grid")
+	}
 	v.Action(keymap.NavUp, 1, c)
-	if !v.page.inGrid || v.page.inEss {
+	v.Action(keymap.NavUp, 1, c)
+	if v.page.inGrid || v.page.inEss {
 		t.Errorf("up from the shelf: grid %v, shelf %v", v.page.inGrid, v.page.inEss)
 	}
-	v.Action(keymap.NavDown, 1, c)
-	if !v.page.inEss {
-		t.Errorf("down from the grid's last row didn't reach the shelf")
-	}
-	v.Action(keymap.NavUp, 1, c)
 	// Essentials keep their songs when another load lays the page out again.
 	v.rebind()
 	if got := len(v.page.songSecs[1].songs); got != len(fcSongs) {
