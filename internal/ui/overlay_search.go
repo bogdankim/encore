@@ -432,14 +432,7 @@ func (s *SearchOverlay) rebuildCatalog() {
 		{srCatSong, "Songs", len(r.Songs)},
 	}
 	if n := len(s.stations); n > 0 && s.stQuery == s.catQuery {
-		// Stations lead when one is named like the query ("nts" finds
-		// NTS Radio 1 before artists called NTS); else they come last.
-		st := group{srCatStation, "Radio Stations", n}
-		if strings.HasPrefix(library.Fold(s.stations[0].Name), library.Fold(s.catQuery)) {
-			groups = append([]group{st}, groups...)
-		} else {
-			groups = append(groups, st)
-		}
+		groups = append(groups, group{srCatStation, "Radio Stations", n})
 	}
 	for _, g := range groups {
 		if g.n == 0 {
