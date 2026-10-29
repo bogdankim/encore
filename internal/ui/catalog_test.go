@@ -532,7 +532,7 @@ func TestCatalogArtistSections(t *testing.T) {
 	for _, s := range v.page.albumSec {
 		labels = append(labels, s.label+":"+strconv.Itoa(len(s.albums)))
 	}
-	if got := strings.Join(labels, " "); got != "Albums:1 Singles & EPs:1 Live Albums:1 Compilations:1 Appears On:1 Essential Albums:1" {
+	if got := strings.Join(labels, " "); got != "Essential Albums:1 Albums:1 Singles & EPs:1 Live Albums:1 Compilations:1 Appears On:1" {
 		t.Errorf("album sections = %s", got)
 	}
 	out := v.Render(140, 42, c)
@@ -542,7 +542,8 @@ func TestCatalogArtistSections(t *testing.T) {
 		}
 	}
 
-	// } walks Top Songs → Essentials (loading its songs) → Albums → Singles & EPs.
+	// } walks Top Songs → Essentials (loading its songs) → Essential Albums
+	// → Albums → Singles & EPs.
 	run := func(cmd tea.Cmd) {
 		runCmd(cmd, func(m tea.Msg) tea.Cmd {
 			if r, ok := m.(catalogResultMsg); ok {
@@ -556,12 +557,17 @@ func TestCatalogArtistSections(t *testing.T) {
 	if v.page.inGrid || v.page.songSec != 1 || len(v.page.songs) != len(fcSongs) {
 		t.Fatalf("after one }: grid %v, song section %d, %d songs", v.page.inGrid, v.page.songSec, len(v.page.songs))
 	}
-	v.Action(keymap.SectionNext, 2, c)
-	if !v.page.inGrid || v.page.albumCur != 1 || v.page.grid.Selected().Title != single.Name {
-		t.Errorf("after three }: grid %v, section %d", v.page.inGrid, v.page.albumCur)
+	v.Action(keymap.SectionNext, 3, c)
+	if !v.page.inGrid || v.page.albumCur != 2 || v.page.grid.Selected().Title != single.Name {
+		t.Errorf("after four }: grid %v, section %d", v.page.inGrid, v.page.albumCur)
+	}
+	// A picked section stays picked when another load lays the page out.
+	v.rebind()
+	if v.page.albumCur != 2 {
+		t.Errorf("picked section after a load: %d", v.page.albumCur)
 	}
 	v.Action(keymap.SectionPrev, 1, c)
-	if v.page.albumCur != 0 {
+	if v.page.albumCur != 1 {
 		t.Errorf("{ went to section %d", v.page.albumCur)
 	}
 	v.Action(keymap.SectionNext, 99, c)
@@ -618,20 +624,15 @@ func TestCatalogErrText(t *testing.T) {
 	}
 }
 
-func TestSearchStationsLead(t *testing.T) {
+func TestSearchStationsLast(t *testing.T) {
 	s := NewSearchIn(scopeCatalog, &fakeCatalog{})
 	s.in.SetValue("nts")
 	s.catQuery, s.stQuery = "nts", "nts"
 	s.catRes = catalog.Results{Artists: []catalog.Artist{fcArtist}}
 	s.stations = []catalog.Station{{ID: "ra.1461123917", Name: "NTS Radio 1"}, {ID: "ra.1461608125", Name: "NTS Radio 2"}}
 	s.rebuild()
-	if s.rows[0].kind != srHeading || s.rows[0].text != "Radio Stations" || s.rows[1].kind != srCatStation {
-		t.Fatalf("rows = %+v", s.rows)
-	}
-	s.stations[0].Name, s.stations[1].Name = "Worldwide FM", "Other"
-	s.rebuild()
 	if s.rows[0].text != "Artists" || s.rows[len(s.rows)-1].kind != srCatStation {
-		t.Errorf("stations not named like the query should come last: %+v", s.rows)
+		t.Errorf("stations should come last: %+v", s.rows)
 	}
 	s.stQuery = "nt" // an older answer
 	s.rebuild()
@@ -643,4 +644,25 @@ func TestSearchStationsLead(t *testing.T) {
 	if st := stationFound(catalog.Station{ID: "ra.1", Name: "X", Artwork: "https://a/b/100x100bb.jpg"}); st.ArtURL != "https://a/b/600x600bb.jpg" {
 		t.Errorf("station art = %q", st.ArtURL)
 	}
+}
+
+// Sections that arrive in any order leave the first one chosen, not
+// whichever came first.
+func TestCatalogArtistFirstSection(t *testing.T) {
+	c, _ := ovTestCtx(t)
+	v := newCatalogArtistView(catalog.Artist{ID: 11, Name: "Juniper Vale"})
+	single := catalog.Album{ID: 22, ArtistID: 11, Name: "Weather Vane - Single", Artist: "Juniper Vale"}
+	v.own = []catalog.Album{single}
+	v.albums = []*library.Album{catalogAlbum(single)}
+	v.rebind()
+	if got := v.page.albumSec[v.page.albumCur].label; got != "Singles & EPs" {
+		t.Fatalf("first load shows %q", got)
+	}
+	v.own = append([]catalog.Album{fcAlbum}, v.own...)
+	v.albums = append([]*library.Album{catalogAlbum(fcAlbum)}, v.albums...)
+	v.rebind()
+	if got := v.page.albumSec[v.page.albumCur].label; got != "Albums" {
+		t.Errorf("after the albums load: %q", got)
+	}
+	v.Render(140, 42, c)
 }

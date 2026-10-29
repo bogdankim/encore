@@ -491,6 +491,12 @@ func (v *CatalogArtistView) sections() []pageSection {
 	extra(catalog.SectionCompilations, &compAl)
 	extra(catalog.SectionAppearsOn, &appears)
 	extra(catalog.SectionEssentials, &essential)
+	notes := map[string]string{}
+	for i, a := range v.web.Sections[catalog.SectionEssentials] {
+		if a.Note != "" && i < len(essential) {
+			notes[essential[i].Key] = a.Note
+		}
+	}
 	skip := map[int64]bool{}
 	for id := range byID {
 		skip[id] = true
@@ -502,8 +508,10 @@ func (v *CatalogArtistView) sections() []pageSection {
 	for _, a := range theirs {
 		appears = append(appears, listed(a))
 	}
-	return albumSections(secAlbums.withAlbums(albums), secSingles.withAlbums(single), secLive.withAlbums(liveAl),
-		secCompilations.withAlbums(compAl), secAppearsOn.withAlbums(appears), secEssentials.withAlbums(essential))
+	// Essential Albums lead, as on Apple's page.
+	return albumSections(secEssentials.withAlbums(essential).withNotes(notes), secAlbums.withAlbums(albums),
+		secSingles.withAlbums(single), secLive.withAlbums(liveAl), secCompilations.withAlbums(compAl),
+		secAppearsOn.withAlbums(appears))
 }
 
 // songSections are Top Songs (Apple's, else the song lookup's order) and
@@ -665,8 +673,10 @@ func (v *CatalogArtistView) header(w, h int, c *Ctx) pageHeader {
 	if m := v.meta(); m != "" {
 		hd.meta = []string{m}
 	}
-	if al := v.page.artist; al != nil && len(al.Albums) > 0 {
-		hd.art, hd.artPID = al.Albums[0].Key, al.Albums[0].ArtPID // Albums first, newest first
+	if u := v.web.Artwork; u != "" {
+		hd.art, hd.artPID = v.Key()+":photo", catalog.ResizeArt(u, catalogArtPx)
+	} else if al := v.cover(); al != nil {
+		hd.art, hd.artPID = al.Key, al.ArtPID
 	} else {
 		hd.art = v.Key() // a calm square until the albums arrive
 	}
@@ -679,6 +689,18 @@ func (v *CatalogArtistView) header(w, h int, c *Ctx) pageHeader {
 		hd.buttons = pageButtons(c, "Artist", func() tea.Cmd { return v.page.playAll(c) }, func() tea.Cmd { return v.page.shuffleAll(c) })
 	}
 	return hd
+}
+
+// cover is the album whose art stands in for the artist's photo: their
+// newest album, else the first release the page lists.
+func (v *CatalogArtistView) cover() *library.Album {
+	if albums := v.page.sectionAlbums(secAlbums.label); len(albums) > 0 {
+		return albums[0]
+	}
+	if a := v.page.artist; a != nil && len(a.Albums) > 0 {
+		return a.Albums[0]
+	}
+	return nil
 }
 
 func (v *CatalogArtistView) playable() bool {

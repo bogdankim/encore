@@ -26,6 +26,7 @@ type pageSection struct {
 	label, short string // short stands in when the chips don't fit
 	songs        []*library.Track
 	albums       []*library.Album
+	notes        map[string]string // by album key: Essential Albums' blurbs
 	// load fills a song section the first time it is chosen; note says
 	// why it is empty meanwhile ("Loading…", an error).
 	load func(c *Ctx) tea.Cmd
@@ -41,6 +42,12 @@ var (
 	secAppearsOn    = pageSection{label: "Appears On", short: "With"}
 	secEssentials   = pageSection{label: "Essential Albums", short: "Essentials"}
 )
+
+// withNotes is sec with a blurb per album key.
+func (sec pageSection) withNotes(notes map[string]string) pageSection {
+	sec.notes = notes
+	return sec
+}
 
 // withAlbums is sec holding albums.
 func (sec pageSection) withAlbums(albums []*library.Album) pageSection {
@@ -94,6 +101,7 @@ type artistPage struct {
 	songSec  int
 	albumSec []pageSection
 	albumCur int              // selected album section
+	picked   bool             // the user chose albumCur; while loading, it is kept
 	lib      *library.Library // the library the album sections came from
 	songs    []*library.Track // the selected song section's songs
 	top      *TrackTable      // their columns and rows
@@ -134,6 +142,7 @@ func (p *artistPage) bind(a *library.Artist) {
 	p.artist = a
 	if a == nil {
 		p.songSecs, p.albumSec, p.songs = nil, nil, nil
+		p.grid.SetNotes(nil)
 		p.grid.Reset(nil)
 		p.top = nil
 		return
@@ -186,20 +195,40 @@ func (p *artistPage) bindCatalog(name string, albums []pageSection, songs []page
 	p.showSongs()
 }
 
-// setAlbumSections replaces the album sections, keeping the chosen one by
-// label when keep is set.
+// setAlbumSections replaces the album sections. With keep, the section
+// the user picked stays picked (by label); otherwise the first shows, so
+// sections that load in any order don't leave an odd one chosen.
 func (p *artistPage) setAlbumSections(secs []pageSection, keep bool) {
-	label := ""
-	if keep && p.albumCur < len(p.albumSec) {
-		label = p.albumSec[p.albumCur].label
+	if !keep {
+		p.picked = false
+	}
+	shown := ""
+	if p.albumCur < len(p.albumSec) {
+		shown = p.albumSec[p.albumCur].label
+	}
+	want := ""
+	if keep && p.picked {
+		want = shown
 	}
 	p.albumSec = secs
-	p.albumCur = max(slices.IndexFunc(secs, func(s pageSection) bool { return s.label == label }), 0)
-	if keep && label != "" && p.albumCur < len(secs) && secs[p.albumCur].label == label {
-		p.grid.SetItems(p.gridAlbums())
-		return
+	p.albumCur = max(slices.IndexFunc(secs, func(s pageSection) bool { return s.label == want }), 0)
+	// The same section: keep the cursor.
+	p.fillGrid(!keep || p.albumCur >= len(secs) || secs[p.albumCur].label != shown)
+}
+
+// fillGrid puts the chosen album section in the grid, at the top with
+// reset.
+func (p *artistPage) fillGrid(reset bool) {
+	var notes map[string]string
+	if p.albumCur < len(p.albumSec) {
+		notes = p.albumSec[p.albumCur].notes
 	}
-	p.grid.Reset(p.gridAlbums())
+	p.grid.SetNotes(notes)
+	if reset {
+		p.grid.Reset(p.gridAlbums())
+	} else {
+		p.grid.SetItems(p.gridAlbums())
+	}
 }
 
 // sectionAlbums are the albums of the album section label.
@@ -299,9 +328,9 @@ func (p *artistPage) selectSection(i int, c *Ctx) tea.Cmd {
 	}
 	if j != p.albumCur {
 		p.albumCur = j
-		p.grid.Reset(p.gridAlbums())
+		p.fillGrid(true)
 	}
-	p.inGrid = true
+	p.inGrid, p.picked = true, true
 	return nil
 }
 
