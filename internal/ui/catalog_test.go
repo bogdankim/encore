@@ -666,3 +666,38 @@ func TestCatalogArtistFirstSection(t *testing.T) {
 	}
 	v.Render(140, 42, c)
 }
+
+func TestLibraryArtistPhoto(t *testing.T) {
+	c, _ := ovTestCtx(t)
+	c.Catalog = &fakeCatalog{page: catalog.ArtistPage{Artwork: "https://art.test/p/100x100bb.jpg"}}
+	clear(artistPhotos)
+	ar := &library.Artist{Name: fcArtist.Name}
+	run := func(cmd tea.Cmd) {
+		runCmd(cmd, func(m tea.Msg) tea.Cmd {
+			if r, ok := m.(catalogResultMsg); ok {
+				return r.apply(c)
+			}
+			return nil
+		})
+	}
+	stale := false
+	run(artistPhotoCmd(c, ar, time.Millisecond, func() bool { return stale }))
+	if _, ok := artistPhotos[ar.Name]; ok {
+		t.Fatal("looked up an artist the list had moved past")
+	}
+	run(artistPhotoCmd(c, ar, 0, nil))
+	if got := artistPhoto(ar); got != "https://art.test/p/100x100bb.jpg" {
+		t.Errorf("photo = %q", got)
+	}
+	if m := catalogMatches[matchKey(Subject{artist: ar})]; !m.found || m.artist.ID != fcArtist.ID {
+		t.Errorf("the search wasn't kept for Open in Apple Music: %+v", m)
+	}
+	if artistPhotoCmd(c, ar, 0, nil) != nil {
+		t.Error("a known photo is looked up again")
+	}
+	p := newArtistPage(ar)
+	if hd := p.header(100, 30, c); len(hd) == 0 {
+		t.Error("no header")
+	}
+	clear(artistPhotos)
+}

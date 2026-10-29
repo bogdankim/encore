@@ -95,10 +95,13 @@ func TestGoToArtistOfStationSongInLibrary(t *testing.T) {
 	s := a.lib.Songs[3]
 	stationSong(a, stationPID, "A Song Nobody Has", s.Artist, "No Such Album")
 	runFind(a, a.openPlayingArtist())
-	if v, ok := a.nav.cur.(*ArtistView); !ok || v.Key() != "artist:"+libraryArtistForCredit(a.lib, s.Artist).Name {
+	name := libraryArtistForCredit(a.lib, s.Artist).Name
+	if v, ok := a.nav.cur.(*ArtistView); !ok || v.Key() != "artist:"+name {
 		t.Fatalf("opened %T", a.nav.cur)
 	}
-	if q := fc.queries(); len(q) != 0 {
+	// Finding the page needs no search; the page then looks up the
+	// artist's photo.
+	if q := fc.queries(); len(q) > 1 || len(q) == 1 && q[0] != name {
 		t.Fatalf("the catalog was asked: %v", q)
 	}
 }

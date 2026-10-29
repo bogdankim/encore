@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/bogdankim/encore/internal/catalog"
 	"github.com/bogdankim/encore/internal/keymap"
 	"github.com/bogdankim/encore/internal/library"
 	"github.com/bogdankim/encore/internal/player"
@@ -413,7 +414,9 @@ func (p *artistPage) header(w, h int, c *Ctx) []string {
 		tail:    openInTail(c, keymap.OpenArtistInCatalog, Subject{artist: a}),
 		buttons: pageButtons(c, "Artist", func() tea.Cmd { return p.playAll(c) }, func() tea.Cmd { return p.shuffleAll(c) }),
 	}
-	if len(a.Albums) > 0 {
+	if u := artistPhoto(a); u != "" {
+		hd.art, hd.artPID = "artist-photo:"+a.Name, catalog.ResizeArt(u, catalogArtPx)
+	} else if len(a.Albums) > 0 {
 		hd.art, hd.artPID = a.Albums[0].Key, a.Albums[0].ArtPID // Albums are newest first
 	}
 	p.zones = p.zones[:0]
@@ -962,7 +965,7 @@ func (v *ArtistsView) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 	default:
 		return false, nil
 	}
-	return true, nil
+	return true, v.photoCmd(c)
 }
 
 // artistAt maps a local cell in the list column to an artist index, or -1.
@@ -1010,9 +1013,23 @@ func (v *ArtistsView) Mouse(ev MouseEvent, c *Ctx) tea.Cmd {
 		if ev.Button == tea.MouseRight {
 			return c.Host.Menu(ev.ScreenX, ev.ScreenY, v.Selected(c))
 		}
+		return v.photoCmd(c)
 	}
 	return nil
 }
+
+// photoCmd looks up the selected artist's photo once the cursor has
+// rested on them.
+func (v *ArtistsView) photoCmd(c *Ctx) tea.Cmd {
+	a := v.selected()
+	return artistPhotoCmd(c, a, artistsPhotoRest, func() bool { return v.selected() == a })
+}
+
+// Init looks up the photo of the artist the list opens on.
+func (v *ArtistsView) Init(c *Ctx) tea.Cmd { return v.photoCmd(c) }
+
+// Init looks up the artist's photo.
+func (v *ArtistView) Init(c *Ctx) tea.Cmd { return artistPhotoCmd(c, v.page.artist, 0, nil) }
 
 // artistListWidth is the list column's width (the rule follows it).
 func artistListWidth(w int) int { return min(max(w*3/10, 20), 30) }
