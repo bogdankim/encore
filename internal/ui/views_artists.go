@@ -124,8 +124,8 @@ type artistPage struct {
 	songsN  int // songs shown
 	noteN   int // 1 when the song section shows its note instead
 	gridY   int
-	gridH   int // the grid's rows on screen
-	essY    int // first row of the shelf's tiles, 0 when it isn't on screen
+	gridH   int         // the grid's rows on screen
+	essY    int         // first row of the shelf's tiles, 0 when it isn't on screen
 	zones   []albumZone // header buttons and section chips, from the last Render
 	hoverZ  int
 	press   pressGuard
