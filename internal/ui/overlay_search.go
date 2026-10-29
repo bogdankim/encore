@@ -630,13 +630,7 @@ func (s *SearchOverlay) activate(i int, c *Ctx) tea.Cmd {
 		ar := s.catRes.Artists[row.i]
 		return ovClose(c, func(h Host) tea.Cmd { return h.Open(newCatalogArtistView(ar)) })
 	case srCatStation:
-		st := stationFound(s.stations[row.i])
-		return ovClose(c, func(h Host) tea.Cmd {
-			if hh, ok := h.(homeHost); ok {
-				return hh.PlayStation(st)
-			}
-			return nil
-		})
+		return s.activateStation(row.i, c)
 	case srSong:
 		songs := s.songs()
 		return ovClose(c, func(h Host) tea.Cmd {
@@ -713,6 +707,10 @@ func (s *SearchOverlay) menu(r searchRow, x, y int, c *Ctx) tea.Cmd {
 		return c.Host.PushOverlay(newMenuFor(x, y, ts, Subject{artist: a}))
 	case srCatAlbum:
 		return catalogAlbumAction(keymap.Menu, catalogAlbum(s.catRes.Albums[r.i]), c, x, y)
+	case srCatStation:
+		return c.Host.PushOverlay(NewMenu(x, y, nil,
+			MenuItem{Label: "Play Station", Key: keymap.Open, Run: func(Host) tea.Cmd { return s.activateStation(r.i, c) }},
+		))
 	case srCatArtist:
 		ar := s.catRes.Artists[r.i]
 		return c.Host.PushOverlay(NewMenu(x, y, nil,
@@ -772,7 +770,7 @@ func (s *SearchOverlay) hints() []ovHint {
 	verb := "open"
 	if s.cur.Sel < len(s.rows) {
 		switch s.rows[s.cur.Sel].kind {
-		case srSong, srCatSong:
+		case srSong, srCatSong, srCatStation:
 			verb = "play"
 		case srRecent, srCatPrompt:
 			verb = "search"
@@ -1015,4 +1013,15 @@ func searchMark(t *theme.Theme, rest string, w int) string {
 // duration.
 func stationFound(st catalog.Station) player.Station {
 	return player.Station{ID: st.ID, Name: st.Name, Kind: player.StationMood, ArtURL: catalog.ResizeArt(st.Artwork, catalogArtPx)}
+}
+
+// activateStation closes search and plays station i of the results.
+func (s *SearchOverlay) activateStation(i int, c *Ctx) tea.Cmd {
+	st := stationFound(s.stations[i])
+	return ovClose(c, func(h Host) tea.Cmd {
+		if hh, ok := h.(homeHost); ok {
+			return hh.PlayStation(st)
+		}
+		return nil
+	})
 }

@@ -39,9 +39,9 @@ var (
 	secAlbums       = pageSection{label: "Albums", short: "Albums"}
 	secSingles      = pageSection{label: "Singles & EPs", short: "Singles"}
 	secLive         = pageSection{label: "Live Albums", short: "Live"}
-	secCompilations = pageSection{label: "Compilations", short: "Comps"}
-	secAppearsOn    = pageSection{label: "Appears On", short: "With"}
-	secEssentials   = pageSection{label: "Essential Albums", short: "Essentials"}
+	secCompilations = pageSection{label: "Compilations", short: "Compilations"}
+	secAppearsOn    = pageSection{label: "Appears On", short: "Appears On"}
+	secEssentials   = pageSection{label: "Essential Albums", short: "Essential Albums"}
 )
 
 // withNotes is sec with a blurb per album key.
@@ -593,8 +593,8 @@ func (p *artistPage) Mouse(ev MouseEvent, c *Ctx) tea.Cmd {
 // chipRow is the line over a part of the page: its one section's name in
 // dim, or every section as a chip, the chosen one in accent, album
 // sections with their counts beside them. Chips get zones on row y that choose
-// them; base is the first chip's section index. Labels shorten, then
-// counts go, then the row starts later so the chosen chip shows.
+// them; base is the first chip's section index. Counts go, then labels
+// shorten, then the row starts later so the chosen chip shows.
 func (p *artistPage) chipRow(c *Ctx, w, y, base int, secs []pageSection, cur int, active bool) string {
 	pt := paintsFor(c.Theme)
 	l := newLine(pt, surfNone, w).pad(headerHang)
@@ -633,7 +633,7 @@ func (p *artistPage) chipRow(c *Ctx, w, y, base int, secs []pageSection, cur int
 	room := contentRight(w) - headerHang
 	cs, total := build(false, true)
 	if total > room {
-		cs, total = build(true, true)
+		cs, total = build(false, false)
 	}
 	if total > room {
 		cs, total = build(true, false)

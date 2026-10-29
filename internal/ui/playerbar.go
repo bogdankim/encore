@@ -651,6 +651,9 @@ func (a *App) renderLCD(b *barLayout, lines []*line, c *Ctx) {
 	// station in the album's place: it is where the music comes from, and
 	// the album has no page here.
 	if st := stationPlaying(c); st != "" {
+		if c.Player.Live && ct.Artist == "" && ct.Name == st {
+			st = "Live Radio" // a broadcast station names itself as the song
+		}
 		a.renderStationSub(b, lines[1], b.textX, b.textW, 1, ct.Artist, st)
 	} else {
 		a.renderSub(b, lines[1], b.textX, b.textW, 1, ct.Artist, ct.Album, " · ")

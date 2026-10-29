@@ -602,9 +602,9 @@ override any token in config.
   has one row of names over it at column 3: a single section is a dim label,
   several are chips, the chosen one in accent (bold when the part doesn't have
   the cursor), the others dim, album chips with a faint count. When the row
-  doesn't fit, labels shorten ("Singles", "Live", "Comps", "With",
-  "Essentials"), then the counts go, then the row starts later with a faint
-  `‹` so the chosen chip shows. `}` and `{` (List context) move the cursor to
+  doesn't fit, the counts go, then labels shorten ("Singles", "Live";
+  Essential Albums keeps its name, since "Essentials" is the songs chip),
+  then the row starts later with a faint `‹` so the chosen chip shows. `}` and `{` (List context) move the cursor to
   the first item of the next or previous section, songs first, stopping at the
   ends; a click on a chip does the same. The grid shows one album section at a
   time, so an artist with many releases isn't one long scroll.

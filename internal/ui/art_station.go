@@ -111,6 +111,15 @@ func (a *App) playingArt(c *Ctx, cur artRef) artRef {
 	if s.ref.key != "" {
 		return s.ref
 	}
+	if st := c.Player.Station; c.Player.Live && st != nil {
+		// Live radio (NTS, Apple Music 1) often comes with no art from
+		// Music, and the show isn't a song the catalog has: the
+		// station's own art stands in.
+		if st.ArtURL != "" && a.art.answeredNone(ct.PID) {
+			return artRef{"station:" + st.ID, st.ArtURL}
+		}
+		return cur
+	}
 	if !s.looked && a.svc.Catalog != nil && a.art.answeredNone(ct.PID) && a.art.now().Sub(s.seen) >= outsideLookupAfter {
 		s.looked = true
 		if s.resolved && s.found && s.song.Artwork != "" {
