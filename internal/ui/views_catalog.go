@@ -429,18 +429,20 @@ func newCatalogArtistView(seed catalog.Artist) *CatalogArtistView {
 // rebind lays the page out again from what has loaded so far.
 func (v *CatalogArtistView) rebind() {
 	hadSongs := len(v.page.songs) > 0
-	v.page.bindCatalog(v.info.Name, v.sections(), v.songSections())
+	albums, ess := v.sections()
+	v.page.bindCatalog(v.info.Name, albums, v.songSections(), ess)
 	if !hadSongs && len(v.page.songs) > 0 {
 		v.page.inGrid = false // the songs came in after the albums
 	}
 }
 
-// sections sorts the albums into the page's sections. The album lookup
+// sections sorts the albums into the page's sections, and the Essential
+// Albums shelf. The album lookup
 // has every release of their own but calls them all albums; Apple's page
 // says which are live albums and compilations and adds Appears On and
 // Essential Albums; the song lookup finds the soundtracks and Various
 // Artists compilations they are on, which neither lists.
-func (v *CatalogArtistView) sections() []pageSection {
+func (v *CatalogArtistView) sections() ([]pageSection, pageSection) {
 	byID := map[int64]*library.Album{}
 	for i, a := range v.own {
 		byID[a.ID] = v.albums[i]
@@ -508,10 +510,9 @@ func (v *CatalogArtistView) sections() []pageSection {
 	for _, a := range theirs {
 		appears = append(appears, listed(a))
 	}
-	// Essential Albums lead, as on Apple's page.
-	return albumSections(secEssentials.withAlbums(essential).withNotes(notes), secAlbums.withAlbums(albums),
-		secSingles.withAlbums(single), secLive.withAlbums(liveAl), secCompilations.withAlbums(compAl),
-		secAppearsOn.withAlbums(appears))
+	return albumSections(secAlbums.withAlbums(albums), secSingles.withAlbums(single), secLive.withAlbums(liveAl),
+			secCompilations.withAlbums(compAl), secAppearsOn.withAlbums(appears)),
+		secEssentials.withAlbums(essential).withNotes(notes)
 }
 
 // songSections are Top Songs (Apple's, else the song lookup's order) and

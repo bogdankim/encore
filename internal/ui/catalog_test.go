@@ -532,18 +532,21 @@ func TestCatalogArtistSections(t *testing.T) {
 	for _, s := range v.page.albumSec {
 		labels = append(labels, s.label+":"+strconv.Itoa(len(s.albums)))
 	}
-	if got := strings.Join(labels, " "); got != "Essential Albums:1 Albums:1 Singles & EPs:1 Live Albums:1 Compilations:1 Appears On:1" {
+	if got := strings.Join(labels, " "); got != "Albums:1 Singles & EPs:1 Live Albums:1 Compilations:1 Appears On:1" {
 		t.Errorf("album sections = %s", got)
 	}
-	out := v.Render(140, 42, c)
+	if len(v.page.essSec.albums) != 1 {
+		t.Errorf("Essential Albums shelf = %d albums", len(v.page.essSec.albums))
+	}
+	out := v.Render(140, 60, c)
 	for _, want := range []string{"Top Songs", "Essentials", "Singles & EPs", "Compilations", "Essential Albums"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page lacks %q", want)
 		}
 	}
 
-	// } walks Top Songs → Essentials (loading its songs) → Essential Albums
-	// → Albums → Singles & EPs.
+	// } walks Top Songs → Essentials (loading its songs) → Albums →
+	// Singles & EPs → … → the Essential Albums shelf.
 	run := func(cmd tea.Cmd) {
 		runCmd(cmd, func(m tea.Msg) tea.Cmd {
 			if r, ok := m.(catalogResultMsg); ok {
@@ -557,23 +560,39 @@ func TestCatalogArtistSections(t *testing.T) {
 	if v.page.inGrid || v.page.songSec != 1 || len(v.page.songs) != len(fcSongs) {
 		t.Fatalf("after one }: grid %v, song section %d, %d songs", v.page.inGrid, v.page.songSec, len(v.page.songs))
 	}
-	v.Action(keymap.SectionNext, 3, c)
-	if !v.page.inGrid || v.page.albumCur != 2 || v.page.grid.Selected().Title != single.Name {
-		t.Errorf("after four }: grid %v, section %d", v.page.inGrid, v.page.albumCur)
+	v.Action(keymap.SectionNext, 2, c)
+	if !v.page.inGrid || v.page.albumCur != 1 || v.page.grid.Selected().Title != single.Name {
+		t.Errorf("after three }: grid %v, section %d", v.page.inGrid, v.page.albumCur)
 	}
 	// A picked section stays picked when another load lays the page out.
 	v.rebind()
-	if v.page.albumCur != 2 {
+	if v.page.albumCur != 1 {
 		t.Errorf("picked section after a load: %d", v.page.albumCur)
 	}
 	v.Action(keymap.SectionPrev, 1, c)
-	if v.page.albumCur != 1 {
+	if v.page.albumCur != 0 {
 		t.Errorf("{ went to section %d", v.page.albumCur)
 	}
 	v.Action(keymap.SectionNext, 99, c)
-	if v.page.albumCur != len(v.page.albumSec)-1 {
-		t.Errorf("} past the end: section %d", v.page.albumCur)
+	if !v.page.inEss || v.page.inGrid {
+		t.Errorf("} past the end: grid %v, shelf %v", v.page.inGrid, v.page.inEss)
 	}
+	// The shelf scrolls into view on a short screen: the header folds to a
+	// title line.
+	out = v.Render(100, 30, c)
+	if !strings.Contains(out, "Essential Albums") || v.page.essY == 0 {
+		t.Errorf("the shelf isn't on screen with the cursor on it")
+	}
+	checkSize(t, "scrolled", out, 100, 30)
+	v.Action(keymap.NavUp, 1, c)
+	if !v.page.inGrid || v.page.inEss {
+		t.Errorf("up from the shelf: grid %v, shelf %v", v.page.inGrid, v.page.inEss)
+	}
+	v.Action(keymap.NavDown, 1, c)
+	if !v.page.inEss {
+		t.Errorf("down from the grid's last row didn't reach the shelf")
+	}
+	v.Action(keymap.NavUp, 1, c)
 	// Essentials keep their songs when another load lays the page out again.
 	v.rebind()
 	if got := len(v.page.songSecs[1].songs); got != len(fcSongs) {
@@ -700,4 +719,16 @@ func TestLibraryArtistPhoto(t *testing.T) {
 		t.Error("no header")
 	}
 	clear(artistPhotos)
+}
+
+// The artist page plans its scroll with headerRows before it draws the
+// header, so the two must agree.
+func TestHeaderRowsMatchesHeader(t *testing.T) {
+	c, _ := ovTestCtx(t)
+	v := newCatalogArtistView(catalog.Artist{ID: 11, Name: "Juniper Vale"})
+	for _, sz := range [][2]int{{150, 50}, {120, 40}, {100, 30}, {90, 24}, {70, 20}, {50, 12}} {
+		if got, want := len(v.page.header(sz[0], sz[1], c)), headerRows(sz[0], sz[1]); got != want {
+			t.Errorf("%dx%d: header has %d rows, headerRows says %d", sz[0], sz[1], got, want)
+		}
+	}
 }

@@ -132,6 +132,9 @@ type AlbumGrid struct {
 	// star after its title: Apple's blurbs for an artist's essential
 	// albums. See SetNotes.
 	notes map[string]string
+	// artPrefix sets this grid's art apart from another grid's on the same
+	// screen that shows some of the same albums.
+	artPrefix string
 
 	w, h int
 	geo  gridGeom
@@ -202,6 +205,22 @@ func (g *AlbumGrid) SetItems(items []*library.Album) {
 		g.cursor = max(min(old, len(items)-1), 0)
 	}
 	g.ensureVisible()
+}
+
+// needH is how many rows the grid takes w cells wide to show every
+// album with nothing to scroll: its tile rows and the blank row under
+// them, or the list's header and rows.
+func (g *AlbumGrid) needH(w int) int {
+	geo := layoutGrid(w, g.pad)
+	geo.notes = len(g.notes) > 0
+	if g.list || !geo.usable() {
+		return len(g.items) + 2
+	}
+	if len(g.items) == 0 {
+		return 3 // the empty note
+	}
+	rows := (len(g.items) + geo.cols - 1) / geo.cols
+	return rows*geo.pitch() + 1
 }
 
 // SetNotes sets the tiles' notes (nil for none). Tiles with notes are a
@@ -695,7 +714,7 @@ func (g *AlbumGrid) renderTiles(c *Ctx) []string {
 			if whole {
 				arts[k] = nil // blank under the row's image
 			} else {
-				arts[k] = strings.Split(c.TileArt(a.Key, a.ArtPID, x, y, geo.tileW, geo.artH, vis, crisp), "\n")
+				arts[k] = strings.Split(c.TileArt(g.artPrefix+a.Key, a.ArtPID, x, y, geo.tileW, geo.artH, vis, crisp), "\n")
 			}
 			if start+k == g.hover && vis == geo.artH {
 				c.CoverArt(x, y+geo.artH-1, playBadgeW, 1)
@@ -787,7 +806,7 @@ func (g *AlbumGrid) prefetch(c *Ctx, last int) {
 		}
 		start := r * g.geo.cols
 		for _, a := range g.items[start:min(start+g.geo.cols, len(g.items))] {
-			c.PrefetchTile(a.Key, a.ArtPID, g.geo.tileW, g.geo.artH)
+			c.PrefetchTile(g.artPrefix+a.Key, a.ArtPID, g.geo.tileW, g.geo.artH)
 		}
 	}
 }
@@ -859,7 +878,7 @@ func titleMark(l *line, tn tone, title string, w int, mark bool, g *theme.Glyphs
 func (g *AlbumGrid) tileRow(c *Ctx, row []*library.Album, y, vis int, crisp bool) bool {
 	tiles := make([]RowTile, len(row))
 	for k, a := range row {
-		tiles[k] = RowTile{Key: a.Key, PID: a.ArtPID, X: g.geo.colX(k)}
+		tiles[k] = RowTile{Key: g.artPrefix + a.Key, PID: a.ArtPID, X: g.geo.colX(k)}
 	}
 	return c.TileRow(tiles, y, g.geo.tileW, g.geo.artH, vis, crisp)
 }

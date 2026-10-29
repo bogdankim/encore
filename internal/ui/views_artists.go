@@ -41,7 +41,7 @@ var (
 	secLive         = pageSection{label: "Live Albums", short: "Live"}
 	secCompilations = pageSection{label: "Compilations", short: "Compilations"}
 	secAppearsOn    = pageSection{label: "Appears On", short: "Appears On"}
-	secEssentials   = pageSection{label: "Essential Albums", short: "Essential Albums"}
+	secEssentials   = pageSection{label: "Essential Albums", short: "Essential Albums"} // a shelf, not a chip
 )
 
 // withNotes is sec with a blurb per album key.
@@ -110,12 +110,22 @@ type artistPage struct {
 	inGrid   bool
 	hover    int // song index under the pointer, -1 when none
 	grid     AlbumGrid
+	// Essential Albums, a shelf of its own under the album grid, with
+	// Apple's blurbs; inEss when it has the cursor (inGrid is then false).
+	ess    AlbumGrid
+	essSec pageSection
+	inEss  bool
+	// peek scrolls the page down to the shelf without moving the cursor
+	// (the wheel past the end of the grid).
+	peek bool
 
 	w, h    int
 	songsY  int // first song line, from the last Render
 	songsN  int // songs shown
 	noteN   int // 1 when the song section shows its note instead
 	gridY   int
+	gridH   int // the grid's rows on screen
+	essY    int // first row of the shelf's tiles, 0 when it isn't on screen
 	zones   []albumZone // header buttons and section chips, from the last Render
 	hoverZ  int
 	press   pressGuard
@@ -131,7 +141,8 @@ type artistPage struct {
 }
 
 func newArtistPage(a *library.Artist) artistPage {
-	p := artistPage{grid: NewAlbumGrid(headerHang), hover: -1, hoverZ: -1}
+	p := artistPage{grid: NewAlbumGrid(headerHang), ess: NewAlbumGrid(headerHang), hover: -1, hoverZ: -1}
+	p.ess.artPrefix = "ess|" // its albums may be in the grid too, on screen at once
 	p.bind(a)
 	return p
 }
@@ -162,8 +173,9 @@ func (p *artistPage) bind(a *library.Artist) {
 	p.lib = nil
 	p.setAlbumSections(artistSections(a, nil), same)
 	if !same {
-		p.songSec, p.songCur, p.inGrid, p.hover = 0, 0, false, -1
+		p.songSec, p.songCur, p.inGrid, p.inEss, p.peek, p.hover = 0, 0, false, false, false, -1
 	}
+	p.setEssentials(pageSection{})
 	p.showSongs()
 }
 
@@ -180,18 +192,21 @@ func (p *artistPage) sync(lib *library.Library) {
 // bindCatalog shows an Apple Music artist: album sections (catalog albums,
 // no tracks) and song sections (stand-ins) as they arrive. Rebinding the
 // same artist keeps the cursors.
-func (p *artistPage) bindCatalog(name string, albums []pageSection, songs []pageSection) {
+func (p *artistPage) bindCatalog(name string, albums []pageSection, songs []pageSection, ess pageSection) {
 	same := p.artist != nil && p.artist.Name == name
 	var all []*library.Album
 	for _, s := range albums {
 		all = append(all, s.albums...)
 	}
 	p.artist = &library.Artist{Name: name, Albums: all, FoldName: library.Fold(name)}
+	all = append(all, ess.albums...)
+	p.artist.Albums = all
 	p.songSecs = songs
 	p.setAlbumSections(albums, same)
 	if !same {
-		p.songSec, p.songCur, p.inGrid, p.hover = 0, 0, false, -1
+		p.songSec, p.songCur, p.inGrid, p.inEss, p.peek, p.hover = 0, 0, false, false, false, -1
 	}
+	p.setEssentials(ess)
 	p.songSec = min(p.songSec, max(len(p.songSecs)-1, 0))
 	p.showSongs()
 }
@@ -242,6 +257,25 @@ func (p *artistPage) sectionAlbums(label string) []*library.Album {
 	return nil
 }
 
+// setEssentials shows sec's albums in the Essential Albums shelf (none
+// when it is empty).
+func (p *artistPage) setEssentials(sec pageSection) {
+	keep := len(sec.albums) == len(p.essSec.albums)
+	p.essSec = sec
+	p.ess.SetNotes(sec.notes)
+	if keep {
+		p.ess.SetItems(sec.albums)
+	} else {
+		p.ess.Reset(sec.albums)
+	}
+	if len(sec.albums) == 0 {
+		p.inEss, p.peek = false, false
+	}
+}
+
+// hasEss reports whether the page has an Essential Albums shelf.
+func (p *artistPage) hasEss() bool { return len(p.essSec.albums) > 0 }
+
 // gridAlbums are the chosen album section's albums.
 func (p *artistPage) gridAlbums() []*library.Album {
 	if p.albumCur < len(p.albumSec) {
@@ -269,13 +303,22 @@ func (p *artistPage) showSongs() {
 	p.songCur = min(p.songCur, max(len(top)-1, 0))
 }
 
-// sections is every section in page order: the song sections, then the
-// album sections.
-func (p *artistPage) sections() int { return len(p.songSecs) + len(p.albumSec) }
+// sections is every section in page order: the song sections, the
+// album sections, then Essential Albums.
+func (p *artistPage) sections() int {
+	n := len(p.songSecs) + len(p.albumSec)
+	if p.hasEss() {
+		n++
+	}
+	return n
+}
 
 // section is the section that has the cursor.
 func (p *artistPage) section() int {
-	if p.inGrid {
+	switch {
+	case p.inEss:
+		return len(p.songSecs) + len(p.albumSec)
+	case p.inGrid:
 		return len(p.songSecs) + p.albumCur
 	}
 	return p.songSec
@@ -312,8 +355,9 @@ func (p *artistPage) moveSection(n int, c *Ctx) tea.Cmd {
 
 // selectSection puts the cursor on the first item of section i.
 func (p *artistPage) selectSection(i int, c *Ctx) tea.Cmd {
+	p.peek = false
 	if i < len(p.songSecs) {
-		p.songSec, p.songCur, p.inGrid = i, 0, false
+		p.songSec, p.songCur, p.inGrid, p.inEss = i, 0, false, false
 		p.showSongs()
 		s := &p.songSecs[i]
 		if s.load != nil && len(s.songs) == 0 {
@@ -324,6 +368,10 @@ func (p *artistPage) selectSection(i int, c *Ctx) tea.Cmd {
 		return nil
 	}
 	j := i - len(p.songSecs)
+	if j == len(p.albumSec) && p.hasEss() {
+		p.inGrid, p.inEss = false, true
+		return nil
+	}
 	if j >= len(p.albumSec) {
 		return nil
 	}
@@ -331,7 +379,7 @@ func (p *artistPage) selectSection(i int, c *Ctx) tea.Cmd {
 		p.albumCur = j
 		p.fillGrid(true)
 	}
-	p.inGrid, p.picked = true, true
+	p.inGrid, p.inEss, p.picked = true, false, true
 	return nil
 }
 
@@ -427,6 +475,12 @@ func (p *artistPage) Selected() []*library.Track {
 	if p.artist == nil {
 		return nil
 	}
+	if p.inEss {
+		if a := p.ess.Selected(); a != nil {
+			return a.Tracks
+		}
+		return nil
+	}
 	if p.inGrid {
 		if a := p.grid.Selected(); a != nil {
 			return a.Tracks
@@ -455,7 +509,25 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		return true, p.moveSection(-max(n, 1), c)
 	}
 	n = max(n, 1)
+	p.peek = false
+	if p.inEss {
+		if a == keymap.NavTop || a == keymap.NavUp && p.ess.Cursor() < p.ess.perRow() {
+			p.inEss = false
+			p.inGrid = p.grid.Len() > 0
+			if a == keymap.NavTop {
+				p.inGrid, p.songCur = p.songsN+p.noteN == 0, 0
+			}
+			return true, nil
+		}
+		cc := c.at(0, p.essY)
+		cc.Focused = true
+		return p.ess.Action(a, n, cc)
+	}
 	if p.inGrid {
+		if a == keymap.NavDown && p.hasEss() && p.grid.Cursor()/p.grid.perRow() == p.grid.totalRows()-1 {
+			p.inGrid, p.inEss = false, true
+			return true, nil
+		}
 		leave := p.songsN+p.noteN > 0 && (a == keymap.NavTop ||
 			a == keymap.NavUp && p.grid.Cursor() < p.grid.perRow())
 		if leave {
@@ -521,6 +593,10 @@ func (p *artistPage) subject() Subject {
 	switch {
 	case p.artist == nil:
 		return Subject{}
+	case p.inEss:
+		if a := p.ess.Selected(); a != nil {
+			return Subject{album: a}
+		}
 	case p.inGrid:
 		if a := p.grid.Selected(); a != nil {
 			return Subject{album: a}
@@ -554,11 +630,36 @@ func (p *artistPage) Mouse(ev MouseEvent, c *Ctx) tea.Cmd {
 		p.press.double(ev)
 		return p.zones[p.hoverZ].do()
 	}
+	if ev.Kind == MouseWheel && p.hasEss() {
+		// Past the end of the grid, or anywhere off it, the wheel
+		// scrolls the page to the shelf and back.
+		inGrid := ev.Y >= p.gridY && ev.Y < p.gridY+p.gridH
+		g := &p.grid
+		end := g.top >= g.totalRows()-g.rowsVisible()
+		switch d := ev.wheelDelta(); {
+		case d > 0 && (!inGrid || end) && p.essY == 0:
+			p.peek = true
+			return nil
+		case d < 0 && p.peek && (!inGrid || g.top == 0):
+			p.peek = false
+			return nil
+		}
+	}
+	if ev.Y >= p.essY && p.essY > 0 {
+		p.hover = -1
+		p.grid.ClearHover()
+		ee := ev.local(0, p.essY)
+		if ev.Kind == MousePress && p.ess.HitTest(ee.X, ee.Y) >= 0 {
+			p.inGrid, p.inEss = false, true
+		}
+		return p.ess.Mouse(ee, c.at(0, p.essY))
+	}
+	p.ess.ClearHover()
 	if ev.Y >= p.gridY && p.gridY > 0 {
 		p.hover = -1
 		ge := ev.local(0, p.gridY)
 		if ev.Kind == MousePress && p.grid.HitTest(ge.X, ge.Y) >= 0 {
-			p.inGrid = true
+			p.inGrid, p.inEss = true, false
 		}
 		return p.grid.Mouse(ge, c.at(0, p.gridY))
 	}
@@ -577,7 +678,7 @@ func (p *artistPage) Mouse(ev MouseEvent, c *Ctx) tea.Cmd {
 		if i < 0 {
 			return nil
 		}
-		p.songCur, p.inGrid = i, false
+		p.songCur, p.inGrid, p.inEss = i, false, false
 		switch {
 		case ev.Button == tea.MouseRight:
 			return c.Host.Menu(ev.ScreenX, ev.ScreenY, p.Selected())
@@ -683,6 +784,10 @@ func (p *artistPage) chipRow(c *Ctx, w, y, base int, secs []pageSection, cur int
 }
 
 // Render draws the page; focused is whether the page has the keyboard.
+// From the top: the header, the songs, the album sections and the
+// Essential Albums shelf. When the shelf has the cursor (or the wheel
+// asked for it) and doesn't fit, the page scrolls: the header folds to a
+// title line, then the songs go.
 func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 	if w <= 0 || h <= 0 {
 		return ""
@@ -693,7 +798,7 @@ func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 	}
 	p.sync(c.Lib)
 	pt := paintsFor(c.Theme)
-	lines := append(p.header(w, h, c), "")
+	hdH := headerRows(w, h)
 	n := min(p.topCount(), len(p.songs))
 	note := ""
 	if p.songSec < len(p.songSecs) && len(p.songs) == 0 {
@@ -705,18 +810,57 @@ func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 	if note != "" {
 		p.noteN = 1
 	}
-	if h-len(lines)-(n+p.noteN+2)-1 < layoutGrid(w, headerHang).artH+2 {
+	if h-hdH-1-(n+p.noteN+2)-1 < layoutGrid(w, headerHang).artH+2 {
 		n, p.noteN = 0, 0 // too short: the albums matter more
 	}
-	p.songsN = n
-	p.songsY = len(lines) + 1
 	p.songsOK = n+p.noteN > 0
+	if !p.songsOK && !p.inEss {
+		p.inGrid = true
+	}
+	songsH := 0
 	if p.songsOK {
+		songsH = n + p.noteN + 2 // the chips, the rows, a blank line
+	}
+
+	// How far the page scrolls.
+	headerH := hdH + 1
+	gridNeed, essH := p.grid.needH(w), 0
+	if p.hasEss() {
+		essH = 1 + p.ess.needH(w)
+	}
+	minGrid := min(gridNeed, layoutGrid(w, headerHang).pitch()+1)
+	wantEss := p.hasEss() && (p.inEss || p.peek)
+	skip := 0
+	for wantEss && skip < 2 {
+		used := 1 + minGrid + essH + songsH // the album chips, some grid, the shelf
+		if skip == 0 {
+			used += headerH
+		} else {
+			used++ // the title line
+		}
+		if used <= h {
+			break
+		}
+		skip++
+	}
+
+	var lines []string
+	if skip == 0 {
+		lines = append(p.header(w, h, c), "") // drawn only on screen: it places the art
+	} else {
+		p.zones = p.zones[:0] // the header's buttons are off screen
+		lines = []string{titleLine(c, w, p.artist.Name, "")}
+	}
+	p.songsN, p.songsY = 0, 0
+	if p.songsOK && skip < 2 {
+		p.songsN = n
+		p.songsY = len(lines) + 1
 		p.songCur = min(p.songCur, max(n-1, 0))
-		lines = append(lines, p.chipRow(c, w, len(lines), 0, p.songSecs, p.songSec, focused && !p.inGrid))
+		inSongs := !p.inGrid && !p.inEss
+		lines = append(lines, p.chipRow(c, w, len(lines), 0, p.songSecs, p.songSec, focused && inSongs))
 		if n > 0 {
 			cursor := p.songCur
-			if p.inGrid {
+			if !inSongs {
 				cursor = -1
 			}
 			lines = append(lines, p.top.listRows(p.songsW(), cursor, p.hover, focused, c)...)
@@ -724,27 +868,57 @@ func (p *artistPage) Render(w, h int, c *Ctx, focused bool) string {
 			lines = append(lines, newLine(pt, surfNone, w).pad(headerHang).add(toneDim, note).String())
 		}
 		lines = append(lines, "")
-	} else {
-		p.inGrid = true
 	}
 	if len(p.albumSec) == 0 {
 		lines = append(lines, newLine(pt, surfNone, w).pad(headerHang).add(toneDim, "Albums").String())
 	} else {
 		lines = append(lines, p.chipRow(c, w, len(lines), len(p.songSecs), p.albumSec, p.albumCur, focused && p.inGrid))
 	}
-	p.gridY = len(lines)
+	p.gridY, p.essY = len(lines), 0
 	if p.gridY >= h {
+		p.gridH = 0
 		return Lines(lines, w, h)
 	}
-	cc := c.at(0, p.gridY)
-	cc.Focused = focused && p.inGrid
-	p.grid.Passive = !p.inGrid
-	empty := "No albums"
-	if p.empty != nil {
-		empty = p.empty(c)
-		cc.LibraryLoading = false
+	rest := h - p.gridY
+	p.gridH = rest
+	if p.hasEss() {
+		switch {
+		case wantEss:
+			p.gridH = max(rest-essH, 0)
+		case rest-essH >= minGrid:
+			p.gridH = min(gridNeed, rest-essH)
+		}
 	}
-	return Lines(lines, w, p.gridY) + "\n" + p.grid.Render(w, h-p.gridY, cc, empty)
+	if p.gridH > 0 {
+		cc := c.at(0, p.gridY)
+		cc.Focused = focused && p.inGrid
+		p.grid.Passive = !p.inGrid
+		empty := "No albums"
+		if p.empty != nil {
+			empty = p.empty(c)
+			cc.LibraryLoading = false
+		}
+		lines = append(lines, strings.Split(p.grid.Render(w, p.gridH, cc, empty), "\n")...)
+	}
+	if y := p.gridY + p.gridH; p.hasEss() && h-y >= 2 {
+		lines = append(lines, p.chipRow(c, w, y, 0, []pageSection{p.essSec}, 0, false))
+		p.essY = y + 1
+		cc := c.at(0, p.essY)
+		cc.Focused = focused && p.inEss
+		p.ess.Passive = !p.inEss
+		lines = append(lines, strings.Split(p.ess.Render(w, h-p.essY, cc, ""), "\n")...)
+	}
+	return Lines(lines, w, h)
+}
+
+// headerRows is how many rows pageHeader.render takes in a w×h view: the
+// art's height, or one line without room for art.
+func headerRows(w, h int) int {
+	aw, ah := heroSize(w, h)
+	if aw == 0 || contentRight(w)-(headerHang+aw+headerGap) < 20 {
+		return 1
+	}
+	return ah
 }
 
 // songsW is the top songs' width: the page's, so they end where the album
@@ -1183,8 +1357,11 @@ func (v *ArtistView) Reindex(lib *library.Library) View {
 // Shuffle.
 func (p *artistPage) FooterHints(c *Ctx) []FooterHint {
 	hs := []FooterHint{{Keys: keysHint(c, keymap.NavDown, keymap.NavUp), Label: "move"}, {Action: keymap.Open, Label: "play"}}
-	if p.inGrid {
+	switch {
+	case p.inGrid:
 		hs = []FooterHint{p.grid.moveHint(c), {Action: keymap.Open, Label: "open"}}
+	case p.inEss:
+		hs = []FooterHint{p.ess.moveHint(c), {Action: keymap.Open, Label: "open"}}
 	}
 	if p.sections() > 1 {
 		hs = append(hs, p.sectionHint(c))
