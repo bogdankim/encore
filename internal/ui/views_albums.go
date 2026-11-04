@@ -98,11 +98,8 @@ func (v *AlbumsView) Title(c *Ctx) (string, string) {
 	return v.title, count(v.total)
 }
 
-// ListLayout reports whether the list layout is on, for saving UI state.
+// ListLayout reports whether the list layout is on.
 func (v *AlbumsView) ListLayout() bool { return v.grid.IsList() }
-
-// SetListLayout restores a saved layout choice.
-func (v *AlbumsView) SetListLayout(on bool) { v.grid.SetList(on) }
 
 func (v *AlbumsView) Reindex(lib *library.Library) View {
 	v.lib = lib

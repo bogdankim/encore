@@ -632,6 +632,9 @@ override any token in config.
   views never show it. Up Next doesn't either: its rows are tight and what
   plays next isn't a library question.
 - Albums: grid by default, list with `v` (or the toggle in the title line).
+  Recently Added, Albums, Artists and artist pages each remember their choice
+  across restarts (`layouts.json` in the state folder). Artist pages opened on
+  their own share one choice.
   `o` cycles the sort and `O` reverses it.
 - Songs: table (Title, Artist, Album, a heart column, Time; Plays and Added
   when there is room). The heart column shows `♥` on favorites and an outline
@@ -818,7 +821,7 @@ re-auth needed). Scrobbles queue on disk and retry with backoff.
 - Cache: `~/Library/Caches/encore/` (library.cache, art/, lyrics/, bin/). See
   "Caches and memory" for what is bounded.
 - State: `~/Library/Application Support/encore/` (scrobble queue, lyric offsets,
-  last view, UI state).
+  grid or list per page, last view, UI state).
 - Logs: `~/Library/Logs/encore/bridge.log` (the bridge's stderr and the Go
   client's own diagnostics, rotated at 5 MB).
 

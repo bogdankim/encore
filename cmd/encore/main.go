@@ -134,6 +134,12 @@ func run(demo bool) error {
 	svc.WordLead = time.Duration(cfg.Lyrics.WordLeadMS) * time.Millisecond
 	svc.Offsets = lyrics.LoadOffsets(lyrics.DefaultOffsetsPath())
 	defer svc.Offsets.Flush()
+	if demo {
+		svc.Layouts = ui.LoadLayouts("") // the demo leaves real choices alone
+	} else {
+		svc.Layouts = ui.LoadLayouts(ui.DefaultLayoutsPath())
+	}
+	defer svc.Layouts.Flush()
 	if !demo {
 		// Credentials come from the Keychain, which can take seconds (or
 		// wait on a prompt), so they load after the first frame; see below.

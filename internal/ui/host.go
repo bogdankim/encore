@@ -376,6 +376,9 @@ func (a *App) Open(v View) tea.Cmd {
 
 // initView calls the open view's Init, if it has one.
 func (a *App) initView() tea.Cmd {
+	if k, ok := a.nav.cur.(layoutKeeper); ok && a.svc.Layouts != nil {
+		k.keepLayouts(a.svc.Layouts)
+	}
 	if in, ok := a.nav.cur.(interface{ Init(*Ctx) tea.Cmd }); ok {
 		return in.Init(a.viewCtx())
 	}

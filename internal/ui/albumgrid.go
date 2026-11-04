@@ -125,6 +125,10 @@ type AlbumGrid struct {
 	onPlay bool // the pointer is on the hovered tile's play badge
 	list   bool
 	pad    int
+	// layouts and layoutPage remember the list choice, once a page has
+	// claimed the grid (see keepLayout).
+	layouts    *Layouts
+	layoutPage string
 	// Passive hides the cursor, for a grid that shares a page with a list
 	// that has it.
 	Passive bool
@@ -178,9 +182,11 @@ func (g *AlbumGrid) Cursor() int { return g.cursor }
 // IsList reports whether the list layout is on.
 func (g *AlbumGrid) IsList() bool { return g.list }
 
-// SetList switches between the grid and list layouts.
+// SetList switches between the grid and list layouts, and remembers the choice
+// for the grid's page.
 func (g *AlbumGrid) SetList(on bool) {
 	g.list = on
+	g.layouts.Set(g.layoutPage, on)
 	g.ensureVisible()
 }
 

@@ -19,6 +19,7 @@ type Services struct {
 	Player    *player.Player
 	Lyrics    *lyrics.Service   // nil when lyrics are disabled
 	Offsets   *lyrics.Offsets   // per-track lyric offsets
+	Layouts   *Layouts          // each page's grid or list choice
 	Scrobbler *lastfm.Scrobbler // nil until wired
 	// LyricsLead highlights each synced line this long before its
 	// timestamp (config lyrics.lead_ms).
