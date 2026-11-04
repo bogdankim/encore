@@ -45,9 +45,16 @@ func (h *gridTestHost) Play(src player.Source, ts []*library.Track, i int) tea.C
 	h.played.src, h.played.tracks, h.played.i = src, ts, i
 	return h.rec("play %s %d", src.Kind, i)
 }
-func (h *gridTestHost) PlayNext(ts []*library.Track) tea.Cmd        { return h.rec("next %d", len(ts)) }
-func (h *gridTestHost) AddToQueue(ts []*library.Track) tea.Cmd      { return h.rec("queue %d", len(ts)) }
-func (h *gridTestHost) ToggleFavorite(ts []*library.Track) tea.Cmd  { return h.rec("fav %d", len(ts)) }
+func (h *gridTestHost) PlayNext(ts []*library.Track) tea.Cmd       { return h.rec("next %d", len(ts)) }
+func (h *gridTestHost) AddToQueue(ts []*library.Track) tea.Cmd     { return h.rec("queue %d", len(ts)) }
+func (h *gridTestHost) ToggleFavorite(ts []*library.Track) tea.Cmd { return h.rec("fav %d", len(ts)) }
+func (h *gridTestHost) PickPlaylist(ts []*library.Track) tea.Cmd   { return h.rec("pick %d", len(ts)) }
+func (h *gridTestHost) AddToPlaylist(p *library.Playlist, ts []*library.Track) tea.Cmd {
+	return h.rec("addto %s %d", p.PID, len(ts))
+}
+func (h *gridTestHost) AddToNewPlaylist(name string, ts []*library.Track) tea.Cmd {
+	return h.rec("addnew %s %d", name, len(ts))
+}
 func (h *gridTestHost) OpenInMusic(kind, id, _ string) tea.Cmd      { return h.rec("music %s %s", kind, id) }
 func (h *gridTestHost) Open(v View) tea.Cmd                         { h.opened = v; return h.rec("open %s", v.Key()) }
 func (h *gridTestHost) OpenAlbum(a *library.Album) tea.Cmd          { return h.rec("album %s", a.Key) }

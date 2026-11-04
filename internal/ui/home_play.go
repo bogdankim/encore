@@ -98,6 +98,8 @@ func homeItemCommand(c *Ctx, act keymap.Action, s home.Shelf, i, x, y int) tea.C
 			return c.Host.AddToQueue(ts[k : k+1])
 		case keymap.QueuePlayNext:
 			return c.Host.PlayNext(ts[k : k+1])
+		case keymap.PlaylistAdd:
+			return c.Host.PickPlaylist(ts[k : k+1])
 		case keymap.PageShuffle:
 			return homePlaySongs(c, s, i)
 		}

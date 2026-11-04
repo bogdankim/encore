@@ -100,7 +100,7 @@ func trackMenuItemsFor(ts []*library.Track, s Subject) []MenuItem {
 	case len(ts) > 1:
 		src = player.Source{Kind: player.KindSongs, Title: plural(len(ts), "Song", "Songs")}
 	}
-	items := playMenuItems(src, ts)
+	items := append(playMenuItems(src, ts), playlistMenuItem(ts))
 	var nav []MenuItem
 	if album != nil && !isAlbum {
 		nav = append(nav, MenuItem{Label: "Go to Album", Run: func(h Host) tea.Cmd { return h.OpenAlbum(album) }})
@@ -133,6 +133,11 @@ func playMenuItems(src player.Source, ts []*library.Track) []MenuItem {
 		{Label: keymap.Name(keymap.QueuePlayNext), Key: keymap.QueuePlayNext, Run: func(h Host) tea.Cmd { return h.PlayNext(ts) }},
 		{Label: keymap.Name(keymap.QueueAdd), Key: keymap.QueueAdd, Run: func(h Host) tea.Cmd { return h.AddToQueue(ts) }},
 	}
+}
+
+// playlistMenuItem opens the playlist picker for ts.
+func playlistMenuItem(ts []*library.Track) MenuItem {
+	return MenuItem{Label: keymap.Name(keymap.PlaylistAdd) + "…", Key: keymap.PlaylistAdd, Run: func(h Host) tea.Cmd { return h.PickPlaylist(ts) }}
 }
 
 // NewPlaylistMenu is the context menu for a playlist or a folder of them:

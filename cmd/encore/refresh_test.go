@@ -101,3 +101,29 @@ func TestRefreshGapIsCapped(t *testing.T) {
 		t.Fatalf("wait %v, want the cap %v", wait, refreshGapMax)
 	}
 }
+
+func TestRefresherTriggerNowSkipsTheGap(t *testing.T) {
+	f := bridge.NewFakeWithClock(1, time.Now)
+	defer f.Close()
+	var cur atomic.Pointer[library.Library]
+	cur.Store(library.Build(&bridge.Snapshot{}))
+
+	var n atomic.Int32
+	r := newRefresher(f, "", &cur)
+	r.debounce = 5 * time.Millisecond
+	r.send = func(tea.Msg) { n.Add(1) }
+	r.lastAt, r.lastTook = time.Now(), time.Hour // the gap would last refreshGapMax
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go r.run(ctx, false)
+	r.triggerNow()
+	for deadline := time.Now().Add(10 * time.Second); n.Load() == 0; time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("triggerNow waited out the gap")
+		}
+	}
+	if r.force.Load() {
+		t.Fatal("force outlived the refresh")
+	}
+}

@@ -83,6 +83,7 @@ var defaults = []defaultBinding{
 	{List, TrackFavorite, []string{"f"}},
 	{List, QueueAdd, []string{"a"}},
 	{List, QueuePlayNext, []string{"A"}},
+	{List, PlaylistAdd, []string{"+"}},
 	{List, PagePlay, []string{"P"}},
 	{List, PageShuffle, []string{"S"}},
 	{List, Menu, []string{"m"}},

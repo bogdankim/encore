@@ -45,6 +45,7 @@ const (
 	catalogBusyM    = "Apple Music search is busy, try again in a moment"
 	catalogOfflineM = "Can’t reach Apple Music"
 	catalogFavM     = "Only songs in your library can be favorites"
+	catalogListM    = "Only songs in your library can go in a playlist"
 )
 
 // catalogErrText is the one line shown for a failed catalog request.
@@ -293,7 +294,7 @@ func catalogMenuItems(ts []*library.Track) []MenuItem {
 	if len(ts) > 1 {
 		src.Title = plural(len(ts), "Song", "Songs")
 	}
-	items := menuGroup(playMenuItems(src, ts), catalogNavItems(ts)...)
+	items := menuGroup(append(playMenuItems(src, ts), playlistMenuItem(ts)), catalogNavItems(ts)...)
 	items = menuGroup(items, openInItems(true, subjectOf(ts))...)
 	return menuGroup(items, musicMenuItems(ts)...)
 }

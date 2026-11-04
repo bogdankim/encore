@@ -35,6 +35,7 @@ type refresher struct {
 	current   *atomic.Pointer[library.Library]
 	send      func(tea.Msg)
 	kick      chan struct{}
+	force     atomic.Bool // the next refresh skips the gap
 	debounce  time.Duration
 
 	gapFactor int           // refreshGapFactor
@@ -54,6 +55,13 @@ func (r *refresher) trigger() {
 	}
 }
 
+// triggerNow is trigger without the wait for the gap after the last refresh,
+// for a change the user made and expects to see. It still debounces.
+func (r *refresher) triggerNow() {
+	r.force.Store(true)
+	r.trigger()
+}
+
 // run refreshes on triggers, debounced; with now it refreshes at once first.
 func (r *refresher) run(ctx context.Context, now bool) {
 	if now {
@@ -69,10 +77,11 @@ func (r *refresher) run(ctx context.Context, now bool) {
 		case <-r.kick:
 			timer.Reset(r.debounce)
 		case <-timer.C:
-			if wait := r.untilNext(time.Now()); wait > 0 {
+			if wait := r.untilNext(time.Now()); wait > 0 && !r.force.Load() {
 				timer.Reset(wait)
 				continue
 			}
+			r.force.Store(false)
 			r.refresh(ctx)
 		}
 	}

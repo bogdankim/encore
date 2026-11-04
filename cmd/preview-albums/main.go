@@ -296,8 +296,12 @@ func (h *host) Play(src player.Source, ts []*library.Track, i int) tea.Cmd {
 	return h.note("Play: bad index %d", i)
 }
 
-func (h *host) PlayNext(ts []*library.Track) tea.Cmd   { return h.note("Play next: %s", titles(ts)) }
-func (h *host) AddToQueue(ts []*library.Track) tea.Cmd { return h.note("Add to queue: %s", titles(ts)) }
+func (h *host) PlayNext(ts []*library.Track) tea.Cmd                      { return h.note("Play next: %s", titles(ts)) }
+func (h *host) AddToQueue(ts []*library.Track) tea.Cmd                    { return h.note("Add to queue: %s", titles(ts)) }
+func (h *host) PickPlaylist([]*library.Track) tea.Cmd                     { return nil }
+func (h *host) AddToPlaylist(*library.Playlist, []*library.Track) tea.Cmd { return nil }
+func (h *host) AddToNewPlaylist(string, []*library.Track) tea.Cmd         { return nil }
+
 func (h *host) ToggleFavorite(ts []*library.Track) tea.Cmd {
 	return h.note("Favorite: %s", titles(ts))
 }

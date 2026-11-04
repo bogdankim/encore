@@ -674,6 +674,46 @@ func (f *Fake) setFlag(ctx context.Context, pid string, set func(*SnapshotTrack)
 	})
 }
 
+// AddToPlaylist appends tracks to a user playlist. A pid the library doesn't
+// have comes back in missing, and a smart playlist or folder refuses, as Music
+// does. It shows in later Snapshots.
+func (f *Fake) AddToPlaylist(ctx context.Context, pid string, tracks []string) (int, []string, error) {
+	added := 0
+	var missing []string
+	err := f.do(ctx, false, func(time.Time) error {
+		i, ok := f.plByPID[pid]
+		if !ok {
+			return notFound("playlist", pid)
+		}
+		p := &f.lib.playlists[i]
+		if p.Kind != "user" || p.Special != "" {
+			return &Error{Code: -50, Message: p.Name + " can't be edited"}
+		}
+		for _, t := range tracks {
+			if _, err := f.track(t); err != nil {
+				missing = append(missing, t)
+				continue
+			}
+			p.Items = append(p.Items, t)
+			added++
+		}
+		return nil
+	})
+	return added, missing, err
+}
+
+// CreatePlaylist adds an empty user playlist at the top level.
+func (f *Fake) CreatePlaylist(ctx context.Context, name string) (string, error) {
+	var pid string
+	err := f.do(ctx, false, func(now time.Time) error {
+		pid = fmt.Sprintf("%016X", uint64(now.UnixNano()))
+		f.plByPID[pid] = len(f.lib.playlists)
+		f.lib.playlists = append(f.lib.playlists, SnapshotPlaylist{PID: pid, Name: name, Kind: "user", Items: []string{}})
+		return nil
+	})
+	return pid, err
+}
+
 // Lyrics returns Music's own plain lyrics, which only a few non-subscription
 // tracks have. Synced demo lyrics come from FakeLRC.
 func (f *Fake) Lyrics(ctx context.Context, pid string) (string, error) {

@@ -262,7 +262,7 @@ func (v *AlbumView) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		return true, v.play(0, c)
 	case keymap.PageShuffle:
 		return true, v.shuffle(c)
-	case keymap.TrackFavorite, keymap.QueueAdd, keymap.QueuePlayNext, keymap.Menu:
+	case keymap.TrackFavorite, keymap.QueueAdd, keymap.QueuePlayNext, keymap.PlaylistAdd, keymap.Menu:
 		sel := v.Selected(c)
 		if sel == nil {
 			return true, nil
@@ -274,6 +274,8 @@ func (v *AlbumView) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 			return true, c.Host.AddToQueue(sel)
 		case keymap.QueuePlayNext:
 			return true, c.Host.PlayNext(sel)
+		case keymap.PlaylistAdd:
+			return true, c.Host.PickPlaylist(sel)
 		}
 		y := v.listY + v.rowOf[v.cursor] - v.top
 		return true, c.Host.Menu(c.Origin.X+tableGutter, c.Origin.Y+y, sel)

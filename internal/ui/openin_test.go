@@ -316,7 +316,7 @@ func TestMenuOpenInItems(t *testing.T) {
 
 	// a catalog song: the library items only for what the library has,
 	// and Open in Music.app whether or not it has it
-	if _, got := menuOf(c, NewMenu(10, 10, catalogTracks(fcSongs[:1]))); got != "Play|Play Next|Add to Up Next||Go to Album|Go to Artist||Open in Music.app" {
+	if _, got := menuOf(c, NewMenu(10, 10, catalogTracks(fcSongs[:1]))); got != "Play|Play Next|Add to Up Next|Add to Playlist…||Go to Album|Go to Artist||Open in Music.app" {
 		t.Errorf("catalog song not in the library: %q", got)
 	}
 	lt := c.Lib.Songs[0]

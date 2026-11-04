@@ -323,7 +323,7 @@ func TestMenuItemsAndActions(t *testing.T) {
 		}
 		return out
 	}
-	if got := labels(m); !slices.Equal(got, []string{"Play", "Play Next", "Add to Up Next", "Go to Album", "Go to Artist", "Open Album in Apple Music", "Open Artist in Apple Music", "Favorite"}) {
+	if got := labels(m); !slices.Equal(got, []string{"Play", "Play Next", "Add to Up Next", "Add to Playlist…", "Go to Album", "Go to Artist", "Open Album in Apple Music", "Open Artist in Apple Music", "Favorite"}) {
 		t.Fatalf("labels %v", got)
 	}
 	favItem := m.items[len(m.items)-1]
@@ -357,7 +357,7 @@ func TestMenuItemsAndActions(t *testing.T) {
 		t.Fatalf("calls %v source %+v", h.calls, h.play.src)
 	}
 	h.calls = nil
-	am.Mouse(MouseEvent{Kind: MousePress, Button: tea.MouseLeft, X: 3, Y: 4}, c) // separator
+	am.Mouse(MouseEvent{Kind: MousePress, Button: tea.MouseLeft, X: 3, Y: 5}, c) // separator
 	if len(h.calls) != 0 {
 		t.Fatalf("separator click ran %v", h.calls)
 	}

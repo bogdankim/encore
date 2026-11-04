@@ -209,6 +209,8 @@ index so art never waits behind a snapshot.
 | `player.playPlaylist` | `{"pid": "HEX"}` | `{}`: native `play playlist` |
 | `player.playStore` | `{"ids": ["1440942209", …], "start": 0}` | `{}`: plays Apple Music catalog songs by store ID, `ids[start:]` in order, through MediaRemote's store queue. Launches Music if needed, turns its shuffle off, waits up to 5 s for MediaRemote. Returns after about 1.6 s; audio starts about then. |
 | `player.playStation` | `{"id": "ra.725086732"}` | `{}`: plays an Apple Music radio station by station ID (`ra.` and then letters, digits, `-`, `_`, `.`) through MediaRemote's radio station queue. Launches Music if needed, leaves its shuffle alone, waits up to 5 s for MediaRemote. Returns after 1–3 s; audio starts about then. |
+| `playlist.addTracks` | `{"pid": "PLAYLIST_HEX", "pids": ["HEX", …]}` | `{"added": n, "missing": ["HEX", …]}`: `duplicate` of each track to the end of a user playlist. `added` is the change in the playlist's track count, since Music can answer a duplicate without adding anything. Fails with the last error when nothing went in. The client sends 50 tracks per call so queued playback commands aren't held up. |
+| `playlist.create` | `{"name": "…"}` | `{"pid": "HEX"}`: a new empty user playlist at the top level. |
 | `track.setFavorite` | `{"pid": "HEX", "value": bool}` | `{}` |
 | `track.setDislike` | `{"pid": "HEX", "value": bool}` | `{}` |
 | `track.lyrics` | `{"pid": "HEX"}` | `{"text": "…"}` (Music's own plain lyrics, often empty). Never launches Music; fails with -600 when it isn't running. |

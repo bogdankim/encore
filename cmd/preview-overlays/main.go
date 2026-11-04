@@ -395,6 +395,10 @@ func (h *host) AddToQueue(ts []*library.Track) tea.Cmd { return h.record("AddToQ
 func (h *host) OpenInMusic(kind, id, _ string) tea.Cmd {
 	return h.record("OpenInMusic(%s %s)", kind, id)
 }
+func (h *host) PickPlaylist([]*library.Track) tea.Cmd                     { return nil }
+func (h *host) AddToPlaylist(*library.Playlist, []*library.Track) tea.Cmd { return nil }
+func (h *host) AddToNewPlaylist(string, []*library.Track) tea.Cmd         { return nil }
+
 func (h *host) ToggleFavorite(ts []*library.Track) tea.Cmd {
 	return h.record("ToggleFavorite(%s)", titles(ts))
 }

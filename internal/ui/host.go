@@ -2,6 +2,11 @@ package ui
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -163,6 +168,189 @@ func (a *App) onFavorite(msg favoriteMsg) tea.Cmd {
 		a.o.RefreshLibrary()
 	}
 	return nil
+}
+
+// PickPlaylist opens the playlist picker for tracks. Apple Music songs count
+// when the library has them too: Music can only copy a track it holds, so the
+// rest stay out and the footer says so afterwards.
+func (a *App) PickPlaylist(tracks []*library.Track) tea.Cmd {
+	lib := libraryTracksOf(a.lib, tracks)
+	if len(lib) == 0 {
+		if len(tracks) == 0 {
+			return nil
+		}
+		return a.setStatus(catalogListM, false)
+	}
+	return a.PushOverlay(NewPlaylistPicker(lib, a.plRecent))
+}
+
+// libraryTracksOf is tracks with each Apple Music song swapped for its library
+// copy, and left out when the library has none.
+func libraryTracksOf(lib *library.Library, tracks []*library.Track) []*library.Track {
+	out := make([]*library.Track, 0, len(tracks))
+	for _, t := range tracks {
+		if player.IsCatalog(t) {
+			id, _ := strconv.ParseInt(strings.TrimPrefix(t.PID, "store:"), 10, 64)
+			if t = lib.MatchSong(id, t.Title, t.Artist); t == nil {
+				continue
+			}
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+// playlistBatch is how many songs go to Music in one call, so that a whole
+// discography doesn't hold up playback commands queued behind it.
+const playlistBatch = 50
+
+// playlistAddTTL is how long songs just added stay on a playlist while
+// snapshots don't show them yet.
+const playlistAddTTL = 5 * time.Minute
+
+// playlistAdd is one song Music added that a snapshot hasn't shown yet.
+type playlistAdd struct {
+	pl, pid string
+	at      time.Time
+}
+
+// playlistAddedMsg reports AddToPlaylist or AddToNewPlaylist. name is the
+// playlist's, pid its id (empty when creating it failed), and pids the songs
+// that went in. skipped counts the ones it already held.
+type playlistAddedMsg struct {
+	name, pid string
+	pids      []string
+	skipped   int
+	failed    int
+	err       error
+}
+
+func (a *App) AddToPlaylist(pl *library.Playlist, tracks []*library.Track) tea.Cmd {
+	add := playlistMissing(pl, tracks)
+	if len(add) == 0 {
+		return a.setStatus(alreadyInM(tracks, pl.Name), false)
+	}
+	name, pid, skipped := pl.Name, pl.PID, len(tracks)-len(add)
+	a.plRecent = pid
+	client := a.client
+	return func() tea.Msg {
+		msg := playlistAddedMsg{name: name, pid: pid, skipped: skipped}
+		sendToPlaylist(client, &msg, add)
+		return msg
+	}
+}
+
+func (a *App) AddToNewPlaylist(name string, tracks []*library.Track) tea.Cmd {
+	client := a.client
+	add := playlistMissing(&library.Playlist{}, tracks)
+	return func() tea.Msg {
+		msg := playlistAddedMsg{name: name}
+		ctx, cancel := context.WithTimeout(context.Background(), bridge.PlaylistTimeout)
+		pid, err := client.CreatePlaylist(ctx, name)
+		cancel()
+		if err != nil {
+			msg.err = err
+			return msg
+		}
+		msg.pid = pid
+		sendToPlaylist(client, &msg, add)
+		return msg
+	}
+}
+
+// sendToPlaylist adds tracks to msg.pid in batches and notes the outcome in
+// msg. It stops at the first batch Music refuses.
+func sendToPlaylist(client bridge.Client, msg *playlistAddedMsg, tracks []*library.Track) {
+	for batch := range slices.Chunk(tracks, playlistBatch) {
+		pids := make([]string, len(batch))
+		for i, t := range batch {
+			pids[i] = t.PID
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), bridge.PlaylistTimeout)
+		added, missing, err := client.AddToPlaylist(ctx, msg.pid, pids)
+		cancel()
+		if err != nil {
+			msg.err = err
+			return
+		}
+		msg.failed += len(missing)
+		for _, p := range pids {
+			if added > 0 && !slices.Contains(missing, p) {
+				msg.pids = append(msg.pids, p)
+				added--
+			}
+		}
+	}
+}
+
+func (a *App) onPlaylistAdded(msg playlistAddedMsg) tea.Cmd {
+	var cmds []tea.Cmd
+	if len(msg.pids) > 0 {
+		now := time.Now()
+		for _, pid := range msg.pids {
+			a.plAdded = append(a.plAdded, playlistAdd{msg.pid, pid, now})
+		}
+		a.plRecent = msg.pid
+		// the open page shows them now; the snapshot catches up behind it
+		cmds = append(cmds, a.setLibrary(a.lib, a.idx))
+	}
+	if msg.pid != "" && a.o.RefreshLibraryNow != nil {
+		a.o.RefreshLibraryNow() // also shows a new playlist that stayed empty
+	}
+	return tea.Batch(append(cmds, a.setStatus(playlistAddedText(a.lib, msg), msg.err != nil))...)
+}
+
+// reapplyPlaylistAdds puts songs just added back on the playlists of lib,
+// where a snapshot taken before Music saved them leaves them out, and forgets
+// the ones lib already has.
+func (a *App) reapplyPlaylistAdds(lib *library.Library) {
+	now := time.Now()
+	a.plAdded = slices.DeleteFunc(a.plAdded, func(ad playlistAdd) bool {
+		t := lib.Track(ad.pid)
+		if t == nil || now.Sub(ad.at) > playlistAddTTL {
+			return true
+		}
+		pl := lib.Playlist(ad.pl)
+		if pl == nil {
+			return false // a new playlist, until a snapshot has it
+		}
+		if slices.ContainsFunc(pl.Tracks, func(x *library.Track) bool { return x.PID == ad.pid }) {
+			return true
+		}
+		pl.Append(t)
+		return false
+	})
+}
+
+func alreadyInM(tracks []*library.Track, name string) string {
+	if len(tracks) == 1 {
+		return "Already in " + name
+	}
+	return "All " + plural(len(tracks), "song", "songs") + " are already in " + name
+}
+
+// playlistAddedText is the footer line for msg.
+func playlistAddedText(lib *library.Library, msg playlistAddedMsg) string {
+	if msg.err != nil && len(msg.pids) == 0 {
+		return "Couldn’t add to " + msg.name + ": " + humanize(msg.err)
+	}
+	what := plural(len(msg.pids), "song", "songs")
+	if len(msg.pids) == 1 {
+		if t := lib.Track(msg.pids[0]); t != nil {
+			what = t.Title
+		}
+	}
+	s := "Added " + what + " to " + msg.name
+	if msg.skipped > 0 {
+		s += fmt.Sprintf(", %d already there", msg.skipped)
+	}
+	if n := msg.failed; n > 0 || msg.err != nil {
+		if msg.err != nil {
+			return s + ", then Music stopped: " + humanize(msg.err)
+		}
+		s += fmt.Sprintf(", %d couldn’t be added", n)
+	}
+	return s
 }
 
 // Open shows v in the content area and focuses it. A view with an

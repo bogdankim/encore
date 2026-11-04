@@ -110,8 +110,15 @@ Queue
 |---|---|
 | `a` | add the selection to the end of Up Next |
 | `A` | play the selection next |
+| `+` | add the selection to a playlist |
 | `J` / `K` | move the row down / up, in the Up Next pane |
 | `x` | remove the row from Up Next |
+
+### Adding to a playlist
+
+`+`, or Add to Playlist in the right-click menu, opens a list of your playlists. Type to filter it, then press `enter`. A name that matches no playlist offers to create one. The playlist you used last comes first, and a dim check marks a playlist that already holds the songs.
+
+Songs a playlist already holds are skipped. Smart playlists, folders and Apple Music playlists you follow can't be edited, so they aren't listed. An Apple Music song has to be in your library first: Music's scripting can only copy a track it already holds. If it isn't, add it in Music.app (`M` opens it there).
 
 Lyrics, in the lyrics pane
 

@@ -323,7 +323,7 @@ func TestCatalogMenuItems(t *testing.T) {
 		labels = append(labels, it.Label)
 	}
 	got := strings.Join(labels, "|")
-	if got != "Play|Play Next|Add to Up Next||Go to Album|Go to Artist||Open Album in Library|Open Artist in Library||Open in Music.app" {
+	if got != "Play|Play Next|Add to Up Next|Add to Playlist…||Go to Album|Go to Artist||Open Album in Library|Open Artist in Library||Open in Music.app" {
 		t.Errorf("menu = %q", got)
 	}
 }

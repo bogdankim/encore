@@ -177,24 +177,25 @@ func run(demo bool) error {
 		status = "config: " + warns[0]
 	}
 	app := ui.New(ui.Options{
-		Client:         client,
-		Player:         pl,
-		Library:        lib,
-		Loading:        loading,
-		Keys:           keys,
-		Theme:          themeFor(cfg, theme.GlyphsFor(cfg.Icons, termProgram(artChoice)), os.Getenv("NO_COLOR") != ""),
-		SidebarWidth:   cfg.SidebarWidth,
-		NoMouse:        !cfg.Mouse,
-		Status:         status,
-		RefreshLibrary: ref.trigger,
-		Services:       svc,
-		Art:            artR,
-		ArtFetch:       artFetch,
-		ArtCacheDir:    artDir,
-		HomePage:       homePage(),
-		Start:          cfg.Start,
-		FrameCap:       time.Second / 30, // while a key or the wheel repeats
-		OnInput:        mem.Touch,
+		Client:            client,
+		Player:            pl,
+		Library:           lib,
+		Loading:           loading,
+		Keys:              keys,
+		Theme:             themeFor(cfg, theme.GlyphsFor(cfg.Icons, termProgram(artChoice)), os.Getenv("NO_COLOR") != ""),
+		SidebarWidth:      cfg.SidebarWidth,
+		NoMouse:           !cfg.Mouse,
+		Status:            status,
+		RefreshLibrary:    ref.trigger,
+		RefreshLibraryNow: ref.triggerNow,
+		Services:          svc,
+		Art:               artR,
+		ArtFetch:          artFetch,
+		ArtCacheDir:       artDir,
+		HomePage:          homePage(),
+		Start:             cfg.Start,
+		FrameCap:          time.Second / 30, // while a key or the wheel repeats
+		OnInput:           mem.Touch,
 	})
 	// 120 frames a second at most (60 by default): a frame goes out at the
 	// next tick after a key, so a tap waits half as long

@@ -43,6 +43,9 @@ type Options struct {
 	// RefreshLibrary asks for a new library snapshot (debounced by the
 	// caller); used after favorites change. May be nil.
 	RefreshLibrary func()
+	// RefreshLibraryNow is RefreshLibrary for a change the user expects to
+	// see soon: it doesn't wait out the gap between refreshes.
+	RefreshLibraryNow func()
 	// Services the panes and overlays use beyond the client and player
 	// (lyrics, offsets, scrobbler, demo lyrics). Client and Player are
 	// filled in from the fields above.
@@ -136,6 +139,8 @@ type App struct {
 	idx        *search.Index
 	libLoading bool
 	fav        map[string]bool
+	plAdded    []playlistAdd // songs Music took that no snapshot shows yet
+	plRecent   string        // the playlist added to last
 
 	snap      player.Snapshot
 	lastErrAt time.Time
@@ -505,6 +510,8 @@ func (a *App) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case favoriteMsg:
 		return a, tea.Batch(a.onFavorite(msg), a.toOverlays(msg))
+	case playlistAddedMsg:
+		return a, a.onPlaylistAdded(msg)
 	case catalogResultMsg:
 		return a, msg.apply(a.viewCtx())
 	}
@@ -723,6 +730,7 @@ func (a *App) setLibrary(lib *library.Library, idx *search.Index) tea.Cmd {
 			delete(a.fav, pid)
 		}
 	}
+	a.reapplyPlaylistAdds(lib)
 	for k, v := range a.sections {
 		if nv := v.Reindex(lib); nv != nil {
 			a.sections[k] = nv

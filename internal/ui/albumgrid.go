@@ -390,7 +390,7 @@ func (g *AlbumGrid) action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		g.moveTo(g.cursor + min(n, per-1-col, len(g.items)-1-g.cursor))
 	case keymap.ViewToggleGrid:
 		g.SetList(!g.list)
-	case keymap.Open, keymap.QueueAdd, keymap.QueuePlayNext, keymap.Menu, keymap.PagePlay, keymap.PageShuffle:
+	case keymap.Open, keymap.QueueAdd, keymap.QueuePlayNext, keymap.PlaylistAdd, keymap.Menu, keymap.PagePlay, keymap.PageShuffle:
 		al := g.Selected()
 		if al == nil {
 			return true, nil
@@ -425,6 +425,8 @@ func (g *AlbumGrid) command(a keymap.Action, al *library.Album, c *Ctx) tea.Cmd 
 		return c.Host.AddToQueue(al.Tracks)
 	case keymap.QueuePlayNext:
 		return c.Host.PlayNext(al.Tracks)
+	case keymap.PlaylistAdd:
+		return c.Host.PickPlaylist(al.Tracks)
 	case keymap.Menu:
 		p := c.Origin.Add(g.cellOf(g.cursor))
 		if g.gridMode() {

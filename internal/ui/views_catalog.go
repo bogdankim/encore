@@ -125,6 +125,7 @@ func catalogAlbumAction(act keymap.Action, al *library.Album, c *Ctx, x, y int) 
 	play := func(c *Ctx, _ catalog.Album, ts []*library.Track) tea.Cmd { return c.Host.Play(src, ts, 0) }
 	next := func(c *Ctx, _ catalog.Album, ts []*library.Track) tea.Cmd { return c.Host.PlayNext(ts) }
 	add := func(c *Ctx, _ catalog.Album, ts []*library.Track) tea.Cmd { return c.Host.AddToQueue(ts) }
+	pick := func(c *Ctx, _ catalog.Album, ts []*library.Track) tea.Cmd { return c.Host.PickPlaylist(ts) }
 	shuffle := func(c *Ctx, _ catalog.Album, ts []*library.Track) tea.Cmd {
 		if len(ts) == 0 {
 			return nil
@@ -142,11 +143,14 @@ func catalogAlbumAction(act keymap.Action, al *library.Album, c *Ctx, x, y int) 
 		return withCatalogAlbum(cat, id, next)
 	case keymap.QueueAdd:
 		return withCatalogAlbum(cat, id, add)
+	case keymap.PlaylistAdd:
+		return withCatalogAlbum(cat, id, pick)
 	case keymap.Menu:
 		items := []MenuItem{
 			{Label: "Play", Key: keymap.Open, Run: func(Host) tea.Cmd { return withCatalogAlbum(cat, id, play) }},
 			{Label: keymap.Name(keymap.QueuePlayNext), Key: keymap.QueuePlayNext, Run: func(Host) tea.Cmd { return withCatalogAlbum(cat, id, next) }},
 			{Label: keymap.Name(keymap.QueueAdd), Key: keymap.QueueAdd, Run: func(Host) tea.Cmd { return withCatalogAlbum(cat, id, add) }},
+			{Label: keymap.Name(keymap.PlaylistAdd) + "…", Key: keymap.PlaylistAdd, Run: func(Host) tea.Cmd { return withCatalogAlbum(cat, id, pick) }},
 			MenuSeparator,
 			{Label: "Go to Album", Run: func(h Host) tea.Cmd { return h.OpenAlbum(al) }},
 		}

@@ -68,6 +68,15 @@ func (h *ovRecorder) Play(src player.Source, ts []*library.Track, i int) tea.Cmd
 }
 func (h *ovRecorder) PlayNext(ts []*library.Track) tea.Cmd   { return h.rec("PlayNext %d", len(ts)) }
 func (h *ovRecorder) AddToQueue(ts []*library.Track) tea.Cmd { return h.rec("AddToQueue %d", len(ts)) }
+func (h *ovRecorder) PickPlaylist(ts []*library.Track) tea.Cmd {
+	return h.rec("PickPlaylist %d", len(ts))
+}
+func (h *ovRecorder) AddToPlaylist(p *library.Playlist, ts []*library.Track) tea.Cmd {
+	return h.rec("AddToPlaylist %s %d", p.Name, len(ts))
+}
+func (h *ovRecorder) AddToNewPlaylist(name string, ts []*library.Track) tea.Cmd {
+	return h.rec("AddToNewPlaylist %s %d", name, len(ts))
+}
 func (h *ovRecorder) OpenInMusic(kind, id, name string) tea.Cmd {
 	return h.rec("OpenInMusic %s %s %s", kind, id, name)
 }

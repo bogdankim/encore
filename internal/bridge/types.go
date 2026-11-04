@@ -242,6 +242,13 @@ type Client interface {
 	SetDislike(ctx context.Context, pid string, value bool) error
 	Lyrics(ctx context.Context, pid string) (string, error)
 
+	// AddToPlaylist appends tracks to the end of a user playlist, in order. It
+	// returns how many Music added and the pids it couldn't; an error means
+	// none went in.
+	AddToPlaylist(ctx context.Context, pid string, tracks []string) (added int, missing []string, err error)
+	// CreatePlaylist makes an empty user playlist and returns its pid.
+	CreatePlaylist(ctx context.Context, name string) (string, error)
+
 	AirPlayDevices(ctx context.Context) ([]AirPlayDevice, error)
 	SelectAirPlay(ctx context.Context, ids []int) error
 	SetAirPlayVolume(ctx context.Context, id int, volume int) error

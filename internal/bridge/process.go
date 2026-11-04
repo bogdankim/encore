@@ -33,6 +33,9 @@ const (
 	PlayTimeout = 10 * time.Second
 	// ArtworkTimeout allows for artwork requests queued behind a snapshot.
 	ArtworkTimeout = 10 * time.Second
+	// PlaylistTimeout covers one batch of AddToPlaylist and may include
+	// launching Music.app.
+	PlaylistTimeout = 15 * time.Second
 )
 
 var (
@@ -805,6 +808,23 @@ func (p *Process) Lyrics(ctx context.Context, pid string) (string, error) {
 	}
 	err := p.call(ctx, DefaultTimeout, "track.lyrics", map[string]any{"pid": pid}, &res)
 	return res.Text, err
+}
+
+func (p *Process) AddToPlaylist(ctx context.Context, pid string, tracks []string) (int, []string, error) {
+	var res struct {
+		Added   int      `json:"added"`
+		Missing []string `json:"missing"`
+	}
+	err := p.call(ctx, PlaylistTimeout, "playlist.addTracks", map[string]any{"pid": pid, "pids": tracks}, &res)
+	return res.Added, res.Missing, err
+}
+
+func (p *Process) CreatePlaylist(ctx context.Context, name string) (string, error) {
+	var res struct {
+		PID string `json:"pid"`
+	}
+	err := p.call(ctx, PlaylistTimeout, "playlist.create", map[string]any{"name": name}, &res)
+	return res.PID, err
 }
 
 func (p *Process) AirPlayDevices(ctx context.Context) ([]AirPlayDevice, error) {

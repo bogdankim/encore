@@ -1,9 +1,14 @@
 // Package library is encore's in-memory index of the Music library. A Library is
-// built once from a bridge.Snapshot and never mutated afterwards, so it can be
-// shared across goroutines freely; a refresh builds a new Library and swaps it.
+// built once from a bridge.Snapshot and only Playlist.Append changes it
+// afterwards, so it can be shared across goroutines freely, except for playlist
+// tracks and durations, which belong to the UI goroutine; a refresh builds a new
+// Library and swaps it.
 package library
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // Track is one song. PID is Music.app's persistent ID in 16-char uppercase hex.
 type Track struct {
@@ -96,6 +101,20 @@ type Playlist struct {
 	Children []*Playlist
 	Duration time.Duration
 	FoldName string
+}
+
+// Append adds tracks to the end of the playlist, for songs Music has just
+// added that no snapshot shows yet. Only the UI goroutine may call it.
+func (p *Playlist) Append(ts ...*Track) {
+	p.Tracks = append(slices.Clip(p.Tracks), ts...)
+	for _, t := range ts {
+		p.Duration += t.Duration
+	}
+	for f := p.Parent; f != nil; f = f.Parent {
+		for _, t := range ts {
+			f.Duration += t.Duration
+		}
+	}
 }
 
 // Library is the whole index. Slices are already sorted for display.

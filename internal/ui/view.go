@@ -99,6 +99,12 @@ type Host interface {
 	PlayNext(tracks []*library.Track) tea.Cmd
 	AddToQueue(tracks []*library.Track) tea.Cmd
 	ToggleFavorite(tracks []*library.Track) tea.Cmd
+	// PickPlaylist opens the picker that adds tracks to a playlist.
+	PickPlaylist(tracks []*library.Track) tea.Cmd
+	// AddToPlaylist appends the tracks pl doesn't already hold to it.
+	AddToPlaylist(pl *library.Playlist, tracks []*library.Track) tea.Cmd
+	// AddToNewPlaylist creates a playlist called name holding tracks.
+	AddToNewPlaylist(name string, tracks []*library.Track) tea.Cmd
 	// OpenInMusic shows an Apple Music item in Music.app (kind "album",
 	// "playlist" or "song" and its id; name is for the footer).
 	OpenInMusic(kind, id, name string) tea.Cmd

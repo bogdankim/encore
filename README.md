@@ -26,6 +26,7 @@ Music.app still plays the audio, handles AirPlay and syncs your library. encore 
 - **Synced lyrics.** Apple Music's own lyrics, with each word filling in as it is sung, and [LRCLIB](https://lrclib.net) for everything else. Click a line to jump to it.
 - **Home.** Apple Music's Home page with your stations, mixes, live radio and new releases.
 - **Apple Music catalog.** Search the whole catalog and stream songs, albums and artists you don't have in your library.
+- **Playlists.** Add songs, albums or a whole artist to a playlist, or to a new one, from any list.
 - **AirPlay.** Pick one or several output devices, each with its own volume. When macOS quietly drops the HomePod after sleep, encore reconnects it.
 - **last.fm scrobbling.** Plays are written to disk first, so nothing is lost offline.
 - **Album art.** iTerm2 images in WezTerm and iTerm2, kitty graphics in kitty and Ghostty, sixel if you ask for it, also inside tmux. Half blocks in every other terminal.
@@ -102,6 +103,7 @@ The player bar is on top, the sidebar with your library and playlists on the lef
 | `P` / `S` | play / shuffle the whole page |
 | `a` / `A` | add to Up Next / play next |
 | `f` | favorite |
+| `+` | add to a playlist |
 | `/` | filter the current list |
 | `space /` | search everything |
 | `space s m` | search Apple Music |

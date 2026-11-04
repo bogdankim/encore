@@ -56,6 +56,7 @@ const (
 	TrackFavoritePlaying Action = "track.favoritePlaying"
 	QueueAdd             Action = "queue.add"
 	QueuePlayNext        Action = "queue.playNext"
+	PlaylistAdd          Action = "playlist.add"
 	Menu                 Action = "menu"
 
 	SearchAll       Action = "search.all"
@@ -225,6 +226,7 @@ var actions = []ActionInfo{
 	{QueueMoveDown, "Move Down", GroupQueue, ""},
 	{QueueMoveUp, "Move Up", GroupQueue, ""},
 	{QueueRemove, "Remove from Up Next", GroupQueue, ""},
+	{PlaylistAdd, "Add to Playlist", GroupQueue, ""},
 
 	{LyricsOffsetUp, "Offset +100 ms", GroupLyrics, ""},
 	{LyricsOffsetDown, "Offset −100 ms", GroupLyrics, ""},

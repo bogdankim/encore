@@ -590,6 +590,8 @@ func (p *artistPage) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		return true, c.Host.AddToQueue(p.Selected())
 	case keymap.QueuePlayNext:
 		return true, c.Host.PlayNext(p.Selected())
+	case keymap.PlaylistAdd:
+		return true, c.Host.PickPlaylist(p.Selected())
 	case keymap.Menu:
 		if len(p.Selected()) == 0 {
 			return true, nil
@@ -1158,6 +1160,8 @@ func (v *ArtistsView) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		return true, c.Host.AddToQueue(v.Selected(c))
 	case keymap.QueuePlayNext:
 		return true, c.Host.PlayNext(v.Selected(c))
+	case keymap.PlaylistAdd:
+		return true, c.Host.PickPlaylist(v.Selected(c))
 	case keymap.PagePlay, keymap.PageShuffle:
 		if v.selected() == nil {
 			return true, nil

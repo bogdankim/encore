@@ -363,6 +363,10 @@ func (t *TrackTable) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		if sel := t.Selected(); sel != nil && c.Host != nil {
 			return true, c.Host.PlayNext(sel)
 		}
+	case keymap.PlaylistAdd:
+		if sel := t.Selected(); sel != nil && c.Host != nil {
+			return true, c.Host.PickPlaylist(sel)
+		}
 	case keymap.ViewSort:
 		t.cycleSort()
 		return true, t.sortStatus(c)

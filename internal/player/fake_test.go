@@ -111,7 +111,11 @@ func (f *fakeClient) PlayStation(_ context.Context, id string) error {
 }
 func (f *fakeClient) SetFavorite(context.Context, string, bool) error { return nil }
 func (f *fakeClient) SetDislike(context.Context, string, bool) error  { return nil }
-func (f *fakeClient) Lyrics(context.Context, string) (string, error)  { return "", nil }
+func (f *fakeClient) AddToPlaylist(context.Context, string, []string) (int, []string, error) {
+	return 0, nil, nil
+}
+func (f *fakeClient) CreatePlaylist(context.Context, string) (string, error) { return "", nil }
+func (f *fakeClient) Lyrics(context.Context, string) (string, error)         { return "", nil }
 func (f *fakeClient) AirPlayDevices(context.Context) ([]bridge.AirPlayDevice, error) {
 	return nil, nil
 }

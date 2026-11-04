@@ -840,3 +840,35 @@ func TestFakeDropAirPlayRoute(t *testing.T) {
 		t.Fatal("reconnected while paused")
 	}
 }
+
+func TestFakeAddToPlaylist(t *testing.T) {
+	f := NewFake(1)
+	defer f.Close()
+	ctx := context.Background()
+	snap, err := f.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := f.CreatePlaylist(ctx, "Road Trip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, missing, err := f.AddToPlaylist(ctx, pid, []string{snap.Tracks[0].PID, "nope"})
+	if err != nil || added != 1 || len(missing) != 1 {
+		t.Fatalf("added %d missing %v err %v", added, missing, err)
+	}
+	snap, _ = f.Snapshot(ctx)
+	i := slices.IndexFunc(snap.Playlists, func(p SnapshotPlaylist) bool { return p.PID == pid })
+	if i < 0 || len(snap.Playlists[i].Items) != 1 {
+		t.Fatalf("snapshot playlist index %d", i)
+	}
+	var smart string
+	for _, p := range snap.Playlists {
+		if p.Kind == "smart" {
+			smart = p.PID
+		}
+	}
+	if _, _, err := f.AddToPlaylist(ctx, smart, []string{snap.Tracks[0].PID}); err == nil {
+		t.Fatal("a smart playlist took a song")
+	}
+}

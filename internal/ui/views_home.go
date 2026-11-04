@@ -546,7 +546,7 @@ func (v *HomeView) Action(a keymap.Action, n int, c *Ctx) (bool, tea.Cmd) {
 		return true, v.activate(c, v.sel, s.cur, false)
 	case keymap.PagePlay:
 		return true, v.activate(c, v.sel, s.cur, true)
-	case keymap.PageShuffle, keymap.QueueAdd, keymap.QueuePlayNext, keymap.Menu, keymap.MusicOpen:
+	case keymap.PageShuffle, keymap.QueueAdd, keymap.QueuePlayNext, keymap.PlaylistAdd, keymap.Menu, keymap.MusicOpen:
 		x, y := v.tileCell(v.sel, s.cur)
 		return true, homeItemCommand(c, a, s.Shelf, s.cur, c.Origin.X+x, c.Origin.Y+y+1)
 	default:
