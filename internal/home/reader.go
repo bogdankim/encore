@@ -158,9 +158,11 @@ func (r *Reader) Load(ctx context.Context) (*Page, error) {
 	for id, t := range r.tracks {
 		tracks[id] = t.Tracks
 	}
+	// The page is as old as its personal shelves: Music can go on caching
+	// the New tab long after it last cached them.
 	p := &Page{Updated: r.saved[partListenNow].time()}
-	if t := r.saved[partNew].time(); t.After(p.Updated) {
-		p.Updated = t
+	if p.Updated.IsZero() {
+		p.Updated = r.saved[partNew].time()
 	}
 	if l := r.saved[partListenNow]; l != nil {
 		p.Shelves = present(l.Shelves, now, tracks)

@@ -241,7 +241,7 @@ func TestLoadShelves(t *testing.T) {
 	f.Add(groupingsKey, "2026-10-20 19:00:01", groupings(), true)
 	p := load(t, newReader(t, f.Dir, t.TempDir(), at1900))
 
-	if want := time.Date(2026, 10, 20, 19, 0, 1, 0, time.UTC); !p.Updated.Equal(want) {
+	if want := time.Date(2026, 10, 20, 19, 0, 0, 0, time.UTC); !p.Updated.Equal(want) {
 		t.Errorf("Updated = %v, want %v", p.Updated, want)
 	}
 	sameLines(t, "shelves", shelfSummary(p.Shelves), []string{
@@ -368,7 +368,7 @@ func TestSavedCopy(t *testing.T) {
 	r2 := newReader(t, f.Dir, store, at1900)
 	p := load(t, r2)
 	sameLines(t, "new reader", shelfSummary(p.Shelves), want)
-	if len(p.New) != 3 || !p.Updated.Equal(time.Date(2026, 10, 20, 19, 0, 1, 0, time.UTC)) {
+	if len(p.New) != 3 || !p.Updated.Equal(time.Date(2026, 10, 20, 19, 0, 0, 0, time.UTC)) {
 		t.Errorf("new reader: %d New shelves, updated %v", len(p.New), p.Updated)
 	}
 	if it := p.Shelves[len(p.Shelves)-1].Items[0]; it.NowPlaying != "The Evening Show" {

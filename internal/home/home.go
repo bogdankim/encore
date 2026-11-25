@@ -42,7 +42,8 @@ const (
 
 // Page is the Home page.
 type Page struct {
-	// Updated is when Music fetched the newest part of the page.
+	// Updated is when Music fetched the personal shelves, or the New tab
+	// when there are none.
 	Updated time.Time
 	// Shelves are the personal recommendations in Music's order, then
 	// Live Radio.
