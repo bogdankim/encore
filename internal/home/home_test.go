@@ -522,3 +522,25 @@ func TestParseBadBodies(t *testing.T) {
 		t.Errorf("shelves: %v", shelfSummary(p.Shelves))
 	}
 }
+
+// Music can stop caching the personal shelves while it still caches the
+// New tab. The page's age is then the age of Top Picks and the rest, not of
+// Live Radio's schedule, or a page weeks old reads "updated 1 min ago".
+func TestUpdatedFollowsPersonalShelves(t *testing.T) {
+	f := musiccachetest.New(t)
+	f.Add(listenNowKey, "2026-11-07 20:43:41", listenNow(), true)
+	f.Add(groupingsKey, "2026-11-25 14:23:08", groupings(), true)
+	now := time.Date(2026, 11, 25, 14, 24, 0, 0, time.UTC)
+	p := load(t, newReader(t, f.Dir, t.TempDir(), now))
+	if want := time.Date(2026, 11, 7, 20, 43, 41, 0, time.UTC); !p.Updated.Equal(want) {
+		t.Errorf("Updated = %v, want the personal shelves' %v", p.Updated, want)
+	}
+
+	// Without personal shelves the New tab is the page.
+	g := musiccachetest.New(t)
+	g.Add(groupingsKey, "2026-11-25 14:23:08", groupings(), true)
+	p = load(t, newReader(t, g.Dir, t.TempDir(), now))
+	if want := time.Date(2026, 11, 25, 14, 23, 8, 0, time.UTC); !p.Updated.Equal(want) {
+		t.Errorf("New tab only: Updated = %v, want %v", p.Updated, want)
+	}
+}
